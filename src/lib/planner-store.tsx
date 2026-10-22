@@ -20,12 +20,24 @@ type Action =
   | { type: "error"; id: string; message: string }
   | { type: "remove"; id: string }
   | { type: "setTermStart"; date: string }
+  | { type: "addEvent"; fileId: string; event: PlannerEvent }
+  | { type: "updateEvent"; fileId: string; eventId: string; patch: Partial<PlannerEvent> }
+  | { type: "removeEvent"; fileId: string; eventId: string }
 
 function updateFile(state: PlannerState, id: string, patch: Partial<SyllabusFile>) {
   return {
     ...state,
     files: state.files.map((f) => (f.id === id ? { ...f, ...patch } : f)),
   }
+}
+
+function updateEvents(
+  state: PlannerState,
+  fileId: string,
+  update: (events: PlannerEvent[]) => PlannerEvent[]
+) {
+  const file = state.files.find((f) => f.id === fileId)
+  return file ? updateFile(state, fileId, { events: update(file.events) }) : state
 }
 
 function reducer(state: PlannerState, action: Action): PlannerState {
@@ -42,6 +54,16 @@ function reducer(state: PlannerState, action: Action): PlannerState {
       return { ...state, files: state.files.filter((f) => f.id !== action.id) }
     case "setTermStart":
       return { ...state, termStart: action.date }
+    case "addEvent":
+      return updateEvents(state, action.fileId, (events) => [...events, action.event])
+    case "updateEvent":
+      return updateEvents(state, action.fileId, (events) =>
+        events.map((e) => (e.id === action.eventId ? { ...e, ...action.patch } : e))
+      )
+    case "removeEvent":
+      return updateEvents(state, action.fileId, (events) =>
+        events.filter((e) => e.id !== action.eventId)
+      )
   }
 }
 
@@ -54,6 +76,10 @@ interface PlannerContextValue {
   addFiles: (files: File[]) => void
   removeFile: (id: string) => void
   setTermStart: (date: string) => void
+  /** Adds a blank, hand-entered event and returns its id. */
+  addEvent: (fileId: string) => string
+  updateEvent: (fileId: string, eventId: string, patch: Partial<PlannerEvent>) => void
+  removeEvent: (fileId: string, eventId: string) => void
 }
 
 const PlannerContext = createContext<PlannerContextValue | null>(null)
@@ -99,8 +125,39 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const setTermStart = useCallback((date: string) => dispatch({ type: "setTermStart", date }), [])
 
+  const addEvent = useCallback((fileId: string) => {
+    const event: PlannerEvent = {
+      id: crypto.randomUUID(),
+      title: "",
+      type: "other",
+      due_date: null,
+      time: null,
+      source_quote: "",
+      page: null,
+      confidence: "high",
+      verified: false,
+    }
+    dispatch({ type: "addEvent", fileId, event })
+    return event.id
+  }, [])
+
+  const updateEvent = useCallback(
+    (fileId: string, eventId: string, patch: Partial<PlannerEvent>) =>
+      dispatch({ type: "updateEvent", fileId, eventId, patch }),
+    []
+  )
+
+  const removeEvent = useCallback(
+    (fileId: string, eventId: string) => dispatch({ type: "removeEvent", fileId, eventId }),
+    []
+  )
+
   return (
-    <PlannerContext value={{ state, addFiles, removeFile, setTermStart }}>{children}</PlannerContext>
+    <PlannerContext
+      value={{ state, addFiles, removeFile, setTermStart, addEvent, updateEvent, removeEvent }}
+    >
+      {children}
+    </PlannerContext>
   )
 }
 

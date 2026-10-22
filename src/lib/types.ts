@@ -18,9 +18,25 @@ export interface ExtractedEvent {
 }
 
 /** An extracted event plus client-only fields for editing and review. */
-export interface PlannerEvent extends ExtractedEvent {
+export interface PlannerEvent extends Omit<ExtractedEvent, "page"> {
   id: string
+  /** null for events the user added by hand. */
+  page: number | null
   verified: boolean
+}
+
+export const EVENT_TYPES: { value: EventType; label: string }[] = [
+  { value: "project", label: "Project" },
+  { value: "paper", label: "Paper" },
+  { value: "exam", label: "Exam" },
+  { value: "quiz", label: "Quiz" },
+  { value: "homework", label: "Homework" },
+  { value: "other", label: "Other" },
+]
+
+/** Show a verify badge until the user confirms anything we weren't sure of. */
+export function needsReview(event: PlannerEvent) {
+  return !event.verified && (event.confidence !== "high" || event.due_date === null)
 }
 
 export type FileStatus = "processing" | "done" | "error"
