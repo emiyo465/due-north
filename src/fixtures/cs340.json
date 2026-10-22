@@ -1,6 +1,11 @@
 {
   "file": "CS340_Software_Design_Syllabus_USABILITY_TEST.pdf",
-  "course": "CS 340: Software Design",
+  "course": {
+    "name": "CS 340: Software Design",
+    "instructor": "Professor Plana",
+    "office_location": "Millennium Science Building 2.18",
+    "office_hours": "Tuesdays 3:00-4:30 PM and Fridays 10:00-11:00 AM"
+  },
   "events": [
     {
       "title": "Quiz 1: Requirements & UML",

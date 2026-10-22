@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { Fragment, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CircleAlert, FileText, LoaderCircle } from "lucide-react"
+import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react"
 import { EventList } from "@/components/event-list"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -48,7 +48,7 @@ export function AnalysisScreen() {
               <TabsTrigger key={f.id} value={f.id} className="flex-none">
                 {f.status === "processing" && <LoaderCircle className="animate-spin" />}
                 {f.status === "error" && <CircleAlert className="text-destructive" />}
-                <span className="max-w-48 truncate">{f.file.name}</span>
+                <span className="max-w-48 truncate">{f.course?.name ?? f.file.name}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -67,10 +67,12 @@ function FilePanel({ file }: { file: SyllabusFile }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-3">
-        <h2 className="flex items-center gap-2 text-base font-medium">
-          <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <span className="truncate">{file.file.name}</span>
-        </h2>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-lg font-semibold tracking-tight">
+            {file.course?.name ?? file.file.name}
+          </h2>
+          <CourseDetails file={file} />
+        </div>
         {file.status === "done" && <EventList file={file} />}
         {file.status === "processing" && (
           <p className="text-sm text-muted-foreground">Still extracting dates from this file…</p>
@@ -85,5 +87,25 @@ function FilePanel({ file }: { file: SyllabusFile }) {
         PDF preview coming soon
       </aside>
     </div>
+  )
+}
+
+function CourseDetails({ file }: { file: SyllabusFile }) {
+  const details = [
+    { label: "Instructor", value: file.course?.instructor },
+    { label: "Office", value: file.course?.office_location },
+    { label: "Office hours", value: file.course?.office_hours },
+    { label: "File", value: file.file.name },
+  ].filter((d): d is { label: string; value: string } => Boolean(d.value))
+
+  return (
+    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm text-muted-foreground">
+      {details.map((d) => (
+        <Fragment key={d.label}>
+          <dt className="font-medium text-foreground">{d.label}</dt>
+          <dd className="break-words">{d.value}</dd>
+        </Fragment>
+      ))}
+    </dl>
   )
 }

@@ -17,6 +17,20 @@ export interface ExtractedEvent {
   confidence: Confidence
 }
 
+/** Course details from the syllabus header; null when the syllabus doesn't say. */
+export interface CourseInfo {
+  /** e.g. "CS 340: Software Design" */
+  name: string | null
+  instructor: string | null
+  office_location: string | null
+  office_hours: string | null
+}
+
+export interface ExtractionResult {
+  course: CourseInfo
+  events: ExtractedEvent[]
+}
+
 /** An extracted event plus client-only fields for editing and review. */
 export interface PlannerEvent extends Omit<ExtractedEvent, "page"> {
   id: string
@@ -47,6 +61,8 @@ export interface SyllabusFile {
   status: FileStatus
   /** 0–100 */
   progress: number
+  /** Set once extraction finishes. */
+  course: CourseInfo | null
   events: PlannerEvent[]
   error?: string
 }

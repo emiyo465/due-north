@@ -2,7 +2,7 @@
 
 import { createContext, use, useCallback, useEffect, useReducer, useRef } from "react"
 import { fakeExtract } from "@/lib/fake-extract"
-import type { ExtractedEvent, PlannerEvent, SyllabusFile } from "@/lib/types"
+import type { CourseInfo, ExtractedEvent, PlannerEvent, SyllabusFile } from "@/lib/types"
 
 // Client-only app state. Uploaded PDFs live in memory and are never sent
 // anywhere or persisted, per the privacy note in docs/SPEC.md.
@@ -16,7 +16,7 @@ interface PlannerState {
 type Action =
   | { type: "add"; files: SyllabusFile[] }
   | { type: "progress"; id: string; progress: number }
-  | { type: "done"; id: string; events: PlannerEvent[] }
+  | { type: "done"; id: string; course: CourseInfo; events: PlannerEvent[] }
   | { type: "error"; id: string; message: string }
   | { type: "remove"; id: string }
   | { type: "setTermStart"; date: string }
@@ -47,7 +47,12 @@ function reducer(state: PlannerState, action: Action): PlannerState {
     case "progress":
       return updateFile(state, action.id, { progress: action.progress })
     case "done":
-      return updateFile(state, action.id, { status: "done", progress: 100, events: action.events })
+      return updateFile(state, action.id, {
+        status: "done",
+        progress: 100,
+        course: action.course,
+        events: action.events,
+      })
     case "error":
       return updateFile(state, action.id, { status: "error", error: action.message })
     case "remove":
@@ -101,6 +106,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       file,
       status: "processing",
       progress: 0,
+      course: null,
       events: [],
     }))
     dispatch({ type: "add", files: added })
@@ -109,7 +115,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const controller = new AbortController()
       controllers.current.set(id, controller)
       fakeExtract(file, (progress) => dispatch({ type: "progress", id, progress }), controller.signal)
-        .then((events) => dispatch({ type: "done", id, events: toPlannerEvents(events) }))
+        .then(({ course, events }) =>
+          dispatch({ type: "done", id, course, events: toPlannerEvents(events) })
+        )
         .catch((err: unknown) => {
           if (controller.signal.aborted) return
           dispatch({ type: "error", id, message: err instanceof Error ? err.message : "Extraction failed" })
