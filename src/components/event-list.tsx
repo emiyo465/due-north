@@ -8,14 +8,22 @@ import { compareEvents } from "@/lib/format"
 import { usePlanner } from "@/lib/planner-store"
 import { needsReview, type SyllabusFile } from "@/lib/types"
 
-export function EventList({ file }: { file: SyllabusFile }) {
+interface EventListProps {
+  file: SyllabusFile
+  selectedId: string | null
+  onSelect: (id: string) => void
+  /** Events whose source quote couldn't be found in the PDF. */
+  missingSources: Set<string>
+}
+
+export function EventList({ file, selectedId, onSelect, missingSources }: EventListProps) {
   const { addEvent, updateEvent, removeEvent } = usePlanner()
   const [editingId, setEditingId] = useState<string | null>(null)
   // A just-added event is discarded if the user cancels before saving it.
   const [unsavedId, setUnsavedId] = useState<string | null>(null)
 
   const events = file.events.toSorted(compareEvents)
-  const reviewCount = events.filter(needsReview).length
+  const reviewCount = events.filter((e) => needsReview(e, missingSources.has(e.id))).length
 
   function startNewEvent() {
     if (unsavedId) removeEvent(file.id, unsavedId)
@@ -53,6 +61,9 @@ export function EventList({ file }: { file: SyllabusFile }) {
               key={event.id}
               event={event}
               editing={event.id === editingId}
+              selected={event.id === selectedId}
+              sourceMissing={missingSources.has(event.id)}
+              onSelect={() => onSelect(event.id)}
               onEdit={() => {
                 if (unsavedId && unsavedId !== event.id) removeEvent(file.id, unsavedId)
                 setEditingId(event.id)

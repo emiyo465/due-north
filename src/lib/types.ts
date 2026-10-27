@@ -48,9 +48,14 @@ export const EVENT_TYPES: { value: EventType; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
-/** Show a verify badge until the user confirms anything we weren't sure of. */
-export function needsReview(event: PlannerEvent) {
-  return !event.verified && (event.confidence !== "high" || event.due_date === null)
+/**
+ * Show a verify badge until the user confirms anything we weren't sure of,
+ * including events whose source quote couldn't be found in the PDF.
+ */
+export function needsReview(event: PlannerEvent, sourceMissing = false) {
+  return (
+    !event.verified && (event.confidence !== "high" || event.due_date === null || sourceMissing)
+  )
 }
 
 export type FileStatus = "processing" | "done" | "error"

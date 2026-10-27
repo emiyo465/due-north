@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useState } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react"
@@ -63,7 +64,20 @@ export function AnalysisScreen() {
   )
 }
 
+// pdf.js needs browser APIs, so the viewer is never prerendered.
+const PdfViewer = dynamic(() => import("@/components/pdf-viewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      Loading PDF viewer…
+    </div>
+  ),
+})
+
 function FilePanel({ file }: { file: SyllabusFile }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [missingSources, setMissingSources] = useState<Set<string>>(new Set())
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-3">
@@ -73,7 +87,14 @@ function FilePanel({ file }: { file: SyllabusFile }) {
           </h2>
           <CourseDetails file={file} />
         </div>
-        {file.status === "done" && <EventList file={file} />}
+        {file.status === "done" && (
+          <EventList
+            file={file}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            missingSources={missingSources}
+          />
+        )}
         {file.status === "processing" && (
           <p className="text-sm text-muted-foreground">Still extracting dates from this file…</p>
         )}
@@ -82,9 +103,16 @@ function FilePanel({ file }: { file: SyllabusFile }) {
         )}
       </div>
 
-      {/* Replaced by the react-pdf viewer with source highlights on day 5. */}
-      <aside className="flex min-h-80 items-center justify-center rounded-xl border border-dashed bg-muted/40 p-6 text-center text-sm text-muted-foreground lg:sticky lg:top-8 lg:h-[calc(100dvh-8rem)]">
-        PDF preview coming soon
+      <aside
+        aria-label={`${file.file.name} preview`}
+        className="h-[75dvh] overflow-hidden rounded-xl border bg-muted/40 lg:sticky lg:top-8 lg:h-[calc(100dvh-8rem)]"
+      >
+        <PdfViewer
+          file={file.file}
+          events={file.events}
+          selectedId={selectedId}
+          onMissingSourcesChange={setMissingSources}
+        />
       </aside>
     </div>
   )

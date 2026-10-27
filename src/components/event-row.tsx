@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CircleCheck, Pencil, Trash2, TriangleAlert } from "lucide-react"
+import { CircleCheck, FileSearch, Pencil, Trash2, TriangleAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,9 @@ const TYPE_LABELS = Object.fromEntries(EVENT_TYPES.map((t) => [t.value, t.label]
 interface EventRowProps {
   event: PlannerEvent
   editing: boolean
+  selected: boolean
+  sourceMissing: boolean
+  onSelect: () => void
   onEdit: () => void
   onSave: (patch: Partial<PlannerEvent>) => void
   onCancel: () => void
@@ -26,13 +29,24 @@ interface EventRowProps {
   onToggleVerified: () => void
 }
 
-export function EventRow({ event, editing, ...handlers }: EventRowProps) {
+export function EventRow({ event, editing, selected, ...rest }: EventRowProps) {
   return (
-    <li className="px-4 py-3">
+    <li
+      className={cn(
+        "px-4 py-3 transition-colors",
+        selected && !editing && "bg-muted/60 shadow-[inset_3px_0_0_var(--color-primary)]"
+      )}
+      // Clicking anywhere on the row (except its controls) shows its source.
+      onClick={(e) => {
+        if (editing || event.page === null) return
+        if ((e.target as HTMLElement).closest("button, input, a, [role=combobox]")) return
+        rest.onSelect()
+      }}
+    >
       {editing ? (
-        <EventForm event={event} onSave={handlers.onSave} onCancel={handlers.onCancel} />
+        <EventForm event={event} onSave={rest.onSave} onCancel={rest.onCancel} />
       ) : (
-        <EventView event={event} {...handlers} />
+        <EventView event={event} {...rest} />
       )}
     </li>
   )
@@ -40,11 +54,13 @@ export function EventRow({ event, editing, ...handlers }: EventRowProps) {
 
 function EventView({
   event,
+  sourceMissing,
+  onSelect,
   onEdit,
   onDelete,
   onToggleVerified,
-}: Pick<EventRowProps, "event" | "onEdit" | "onDelete" | "onToggleVerified">) {
-  const review = needsReview(event)
+}: Omit<EventRowProps, "editing" | "selected" | "onSave" | "onCancel">) {
+  const review = needsReview(event, sourceMissing)
   const label = event.title || "Untitled event"
 
   return (
@@ -65,14 +81,25 @@ function EventView({
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline">{TYPE_LABELS[event.type]}</Badge>
           {event.page !== null ? (
-            <span className="text-xs text-muted-foreground">Page {event.page}</span>
+            <button
+              type="button"
+              onClick={onSelect}
+              className="inline-flex items-center gap-1 rounded text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              aria-label={`Show ${label} in the PDF (page ${event.page})`}
+            >
+              <FileSearch className="size-3" aria-hidden />
+              Page {event.page}
+            </button>
           ) : (
             <span className="text-xs text-muted-foreground">Added by you</span>
           )}
           {review && (
-            <Badge className="bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200">
+            <Badge
+              className="bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200"
+              title={sourceMissing ? "Couldn't find this in the PDF" : undefined}
+            >
               <TriangleAlert />
-              Verify
+              {sourceMissing ? "Verify · not found in PDF" : "Verify"}
             </Badge>
           )}
         </div>
