@@ -3,8 +3,9 @@
   "course": {
     "name": "CS 340: Software Design",
     "instructor": "Professor Plana",
+    "meeting_times": "Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04",
     "office_location": "Millennium Science Building 2.18",
-    "office_hours": "Tuesdays 3:00-4:30 PM and Fridays 10:00-11:00 AM"
+    "office_hours": "Tuesdays 3:00–4:30 PM and Fridays 10:00–11:00 AM"
   },
   "events": [
     {

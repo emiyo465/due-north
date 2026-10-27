@@ -22,6 +22,8 @@ export interface CourseInfo {
   /** e.g. "CS 340: Software Design" */
   name: string | null
   instructor: string | null
+  /** When and where the class meets, e.g. "Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04" */
+  meeting_times: string | null
   office_location: string | null
   office_hours: string | null
 }

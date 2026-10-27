@@ -9,7 +9,13 @@ const FIXTURES: { match: RegExp; result: ExtractionResult }[] = [
 ]
 
 const EMPTY_RESULT: ExtractionResult = {
-  course: { name: null, instructor: null, office_location: null, office_hours: null },
+  course: {
+    name: null,
+    instructor: null,
+    meeting_times: null,
+    office_location: null,
+    office_hours: null,
+  },
   events: [],
 }
 

@@ -142,6 +142,7 @@ function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }
 function CourseDetails({ file }: { file: SyllabusFile }) {
   const details = [
     { label: "Instructor", value: file.course?.instructor },
+    { label: "Class meetings", value: file.course?.meeting_times },
     { label: "Office", value: file.course?.office_location },
     { label: "Office hours", value: file.course?.office_hours },
     { label: "File", value: file.file.name },
