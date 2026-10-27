@@ -1,12 +1,13 @@
 "use client"
 
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, useCallback, useEffect, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react"
 import { EventList } from "@/components/event-list"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { ExportDialog } from "@/components/export-dialog"
+import { buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePlanner } from "@/lib/planner-store"
 import type { SyllabusFile } from "@/lib/types"
@@ -17,6 +18,12 @@ export function AnalysisScreen() {
   const { files } = state
   const [activeId, setActiveId] = useState<string | null>(null)
   const active = files.find((f) => f.id === activeId) ?? files[0]
+  // Kept here rather than per tab so it survives tab switches and feeds the export summary.
+  const [missingSources, setMissingSources] = useState<Record<string, Set<string>>>({})
+  const handleMissingSources = useCallback(
+    (fileId: string, ids: Set<string>) => setMissingSources((prev) => ({ ...prev, [fileId]: ids })),
+    []
+  )
 
   // Nothing to review (direct visit or reload, since uploads aren't stored).
   useEffect(() => {
@@ -38,8 +45,7 @@ export function AnalysisScreen() {
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Review your dates</h1>
         </div>
-        {/* Wired up to the export popup on day 6. */}
-        <Button disabled>Export</Button>
+        <ExportDialog files={files} missingSources={missingSources} />
       </header>
 
       <Tabs value={active.id} onValueChange={(value) => setActiveId(value)}>
@@ -56,7 +62,11 @@ export function AnalysisScreen() {
         )}
         {files.map((f) => (
           <TabsContent key={f.id} value={f.id}>
-            <FilePanel file={f} />
+            <FilePanel
+              file={f}
+              missingSources={missingSources[f.id]}
+              onMissingSourcesChange={handleMissingSources}
+            />
           </TabsContent>
         ))}
       </Tabs>
@@ -74,9 +84,20 @@ const PdfViewer = dynamic(() => import("@/components/pdf-viewer"), {
   ),
 })
 
-function FilePanel({ file }: { file: SyllabusFile }) {
+const NO_MISSING = new Set<string>()
+
+interface FilePanelProps {
+  file: SyllabusFile
+  missingSources: Set<string> | undefined
+  onMissingSourcesChange: (fileId: string, ids: Set<string>) => void
+}
+
+function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }: FilePanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [missingSources, setMissingSources] = useState<Set<string>>(new Set())
+  const reportMissing = useCallback(
+    (ids: Set<string>) => onMissingSourcesChange(file.id, ids),
+    [file.id, onMissingSourcesChange]
+  )
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
@@ -111,7 +132,7 @@ function FilePanel({ file }: { file: SyllabusFile }) {
           file={file.file}
           events={file.events}
           selectedId={selectedId}
-          onMissingSourcesChange={setMissingSources}
+          onMissingSourcesChange={reportMissing}
         />
       </aside>
     </div>
