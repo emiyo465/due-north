@@ -100,6 +100,15 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return () => active.forEach((c) => c.abort())
   }, [])
 
+  // Nothing is stored, so warn before a reload or tab close throws work away.
+  const hasFiles = state.files.length > 0
+  useEffect(() => {
+    if (!hasFiles) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [hasFiles])
+
   const addFiles = useCallback((files: File[]) => {
     const added: SyllabusFile[] = files.map((file) => ({
       id: crypto.randomUUID(),
