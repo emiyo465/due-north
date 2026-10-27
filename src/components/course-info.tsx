@@ -66,14 +66,15 @@ export function CourseInfoSection({
             onCancel={() => setEditingKey(null)}
             onSave={(value) => {
               const field = course[key]
+              // Saving means the user has checked it, so it counts as verified.
               setCourseField(
                 file.id,
                 key,
                 !value
                   ? null
                   : field
-                    ? { ...field, value }
-                    : { value, source_quote: "", page: null, verified: false }
+                    ? { ...field, value, verified: true }
+                    : { value, source_quote: "", page: null, verified: true }
               )
               setEditingKey(null)
             }}

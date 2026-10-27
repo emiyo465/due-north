@@ -75,7 +75,8 @@ export function EventList({ file, selectedId, onSelect, missingSources }: EventL
                 setUnsavedId(null)
               }}
               onSave={(patch) => {
-                updateEvent(file.id, event.id, patch)
+                // Saving means the user has checked it, including hand-added events.
+                updateEvent(file.id, event.id, { ...patch, verified: true })
                 stopEditing()
               }}
               onCancel={() => {
