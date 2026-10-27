@@ -17,15 +17,30 @@ export interface ExtractedEvent {
   confidence: Confidence
 }
 
-/** Course details from the syllabus header; null when the syllabus doesn't say. */
-export interface CourseInfo {
-  /** e.g. "CS 340: Software Design" */
-  name: string | null
-  instructor: string | null
-  /** When and where the class meets, e.g. "Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04" */
-  meeting_times: string | null
-  office_location: string | null
-  office_hours: string | null
+/** One course detail, with where it came from so it can be highlighted. */
+export interface CourseField {
+  value: string
+  /** Verbatim text from the syllabus, including its label (e.g. "Meetings Tuesdays & …"). */
+  source_quote: string
+  page: number
+}
+
+export type CourseFieldKey = "name" | "instructor" | "meeting_times" | "office_location" | "office_hours"
+
+/** Course details from the syllabus header; a field is null when the syllabus doesn't say. */
+export type CourseInfo = Record<CourseFieldKey, CourseField | null>
+
+export const COURSE_FIELDS: { key: CourseFieldKey; label: string }[] = [
+  { key: "name", label: "Course" },
+  { key: "instructor", label: "Instructor" },
+  { key: "meeting_times", label: "Class meetings" },
+  { key: "office_location", label: "Office" },
+  { key: "office_hours", label: "Office hours" },
+]
+
+/** Id for a course field wherever events and course fields share one id space (selection, highlights). */
+export function courseFieldId(key: CourseFieldKey) {
+  return `course:${key}`
 }
 
 export interface ExtractionResult {
@@ -41,7 +56,15 @@ export interface PlannerEvent extends Omit<ExtractedEvent, "page"> {
   verified: boolean
 }
 
-export const EVENT_TYPES: { value: EventType; label: string }[] = [
+/** A course field plus client-only review state; page is null when the user typed it in. */
+export interface PlannerCourseField extends Omit<CourseField, "page"> {
+  page: number | null
+  verified: boolean
+}
+
+export type PlannerCourse = Record<CourseFieldKey, PlannerCourseField | null>
+
+export const EVENT_TYPES:{ value: EventType; label: string }[] = [
   { value: "project", label: "Project" },
   { value: "paper", label: "Paper" },
   { value: "exam", label: "Exam" },
@@ -69,7 +92,7 @@ export interface SyllabusFile {
   /** 0–100 */
   progress: number
   /** Set once extraction finishes. */
-  course: CourseInfo | null
+  course: PlannerCourse | null
   events: PlannerEvent[]
   error?: string
 }

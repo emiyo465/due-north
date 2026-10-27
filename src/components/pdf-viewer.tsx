@@ -5,7 +5,6 @@ import { Document, Page, pdfjs } from "react-pdf"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { LoaderCircle } from "lucide-react"
 import { findQuote } from "@/lib/quote-match"
-import type { PlannerEvent } from "@/lib/types"
 import "react-pdf/dist/Page/TextLayer.css"
 
 // Must be set in the same module that renders <Document> (see react-pdf docs).
@@ -23,17 +22,26 @@ function escapeHtml(text: string) {
   return text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 }
 
+/** Something to highlight: an event or a course field. */
+export interface HighlightSource {
+  id: string
+  /** Empty for things the user typed in, which have nothing to highlight. */
+  quote: string
+  /** The page the extractor reported, or null if unknown. */
+  page: number | null
+}
+
 interface PdfViewerProps {
   file: File
-  events: PlannerEvent[]
+  sources: HighlightSource[]
   selectedId: string | null
-  /** Reports which events' source quotes couldn't be found in the PDF. */
+  /** Reports which sources' quotes couldn't be found in the PDF. */
   onMissingSourcesChange: (ids: Set<string>) => void
 }
 
 export default function PdfViewer({
   file,
-  events,
+  sources,
   selectedId,
   onMissingSourcesChange,
 }: PdfViewerProps) {
@@ -73,23 +81,23 @@ export default function PdfViewer({
   const matches = useMemo(() => {
     const result = new Map<string, SourceMatch | null>()
     if (!pageTexts) return result
-    for (const event of events) {
-      if (!event.source_quote) continue
+    for (const source of sources) {
+      if (!source.quote) continue
       // Try the page the extractor reported first, then the rest.
       const order = pageTexts.map((_, i) => i + 1)
-      if (event.page) order.sort((a, b) => Number(b === event.page) - Number(a === event.page))
+      if (source.page) order.sort((a, b) => Number(b === source.page) - Number(a === source.page))
       let match: SourceMatch | null = null
       for (const page of order) {
-        const items = findQuote(pageTexts[page - 1], event.source_quote)
+        const items = findQuote(pageTexts[page - 1], source.quote)
         if (items) {
           match = { page, items: new Set(items) }
           break
         }
       }
-      result.set(event.id, match)
+      result.set(source.id, match)
     }
     return result
-  }, [events, pageTexts])
+  }, [sources, pageTexts])
 
   useEffect(() => {
     if (!pageTexts) return
@@ -98,8 +106,8 @@ export default function PdfViewer({
   }, [matches, pageTexts, onMissingSourcesChange])
 
   const selectedMatch = selectedId ? matches.get(selectedId) : undefined
-  const selectedEvent = events.find((e) => e.id === selectedId)
-  const targetPage = selectedMatch?.page ?? selectedEvent?.page ?? null
+  const selectedSource = sources.find((s) => s.id === selectedId)
+  const targetPage = selectedMatch?.page ?? selectedSource?.page ?? null
 
   // Scroll once the target page's text layer (and its highlight) has rendered.
   const pendingScroll = useRef(false)

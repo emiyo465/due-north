@@ -1,16 +1,18 @@
 "use client"
 
-import { Fragment, useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react"
+import { CourseInfoSection } from "@/components/course-info"
 import { EventList } from "@/components/event-list"
 import { ExportDialog } from "@/components/export-dialog"
 import { buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePlanner } from "@/lib/planner-store"
-import type { SyllabusFile } from "@/lib/types"
+import { COURSE_FIELDS, courseFieldId, type SyllabusFile } from "@/lib/types"
+import type { HighlightSource } from "@/components/pdf-viewer"
 
 export function AnalysisScreen() {
   const router = useRouter()
@@ -55,7 +57,7 @@ export function AnalysisScreen() {
               <TabsTrigger key={f.id} value={f.id} className="flex-none">
                 {f.status === "processing" && <LoaderCircle className="animate-spin" />}
                 {f.status === "error" && <CircleAlert className="text-destructive" />}
-                <span className="max-w-48 truncate">{f.course?.name ?? f.file.name}</span>
+                <span className="max-w-48 truncate">{f.course?.name?.value ?? f.file.name}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -99,15 +101,35 @@ function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }
     [file.id, onMissingSourcesChange]
   )
 
+  // Course fields and events share one list of things the viewer can highlight.
+  const sources = useMemo<HighlightSource[]>(
+    () => [
+      ...COURSE_FIELDS.flatMap(({ key }) => {
+        const field = file.course?.[key]
+        return field ? [{ id: courseFieldId(key), quote: field.source_quote, page: field.page }] : []
+      }),
+      ...file.events.map((e) => ({ id: e.id, quote: e.source_quote, page: e.page })),
+    ],
+    [file.course, file.events]
+  )
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-3">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold tracking-tight">
-            {file.course?.name ?? file.file.name}
+            {file.course?.name?.value ?? file.file.name}
           </h2>
-          <CourseDetails file={file} />
+          <p className="text-sm break-words text-muted-foreground">{file.file.name}</p>
         </div>
+        {file.status === "done" && (
+          <CourseInfoSection
+            file={file}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            missingSources={missingSources}
+          />
+        )}
         {file.status === "done" && (
           <EventList
             file={file}
@@ -130,32 +152,11 @@ function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }
       >
         <PdfViewer
           file={file.file}
-          events={file.events}
+          sources={sources}
           selectedId={selectedId}
           onMissingSourcesChange={reportMissing}
         />
       </aside>
     </div>
-  )
-}
-
-function CourseDetails({ file }: { file: SyllabusFile }) {
-  const details = [
-    { label: "Instructor", value: file.course?.instructor },
-    { label: "Class meetings", value: file.course?.meeting_times },
-    { label: "Office", value: file.course?.office_location },
-    { label: "Office hours", value: file.course?.office_hours },
-    { label: "File", value: file.file.name },
-  ].filter((d): d is { label: string; value: string } => Boolean(d.value))
-
-  return (
-    <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm text-muted-foreground">
-      {details.map((d) => (
-        <Fragment key={d.label}>
-          <dt className="font-medium text-foreground">{d.label}</dt>
-          <dd className="break-words">{d.value}</dd>
-        </Fragment>
-      ))}
-    </dl>
   )
 }

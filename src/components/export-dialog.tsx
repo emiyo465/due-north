@@ -36,7 +36,7 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
     needsReview(event, missingSources[file.id]?.has(event.id))
   ).length
   const source =
-    done.length === 1 ? (done[0].course?.name ?? done[0].file.name) : `${done.length} syllabi`
+    done.length === 1 ? (done[0].course?.name?.value ?? done[0].file.name) : `${done.length} syllabi`
 
   return (
     <Dialog onOpenChange={(open) => !open && setNotice(null)}>

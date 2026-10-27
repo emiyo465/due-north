@@ -2,7 +2,15 @@
 
 import { createContext, use, useCallback, useEffect, useReducer, useRef } from "react"
 import { fakeExtract } from "@/lib/fake-extract"
-import type { CourseInfo, ExtractedEvent, PlannerEvent, SyllabusFile } from "@/lib/types"
+import type {
+  CourseFieldKey,
+  CourseInfo,
+  ExtractedEvent,
+  PlannerCourse,
+  PlannerCourseField,
+  PlannerEvent,
+  SyllabusFile,
+} from "@/lib/types"
 
 // Client-only app state. Uploaded PDFs live in memory and are never sent
 // anywhere or persisted, per the privacy note in docs/SPEC.md.
@@ -16,13 +24,14 @@ interface PlannerState {
 type Action =
   | { type: "add"; files: SyllabusFile[] }
   | { type: "progress"; id: string; progress: number }
-  | { type: "done"; id: string; course: CourseInfo; events: PlannerEvent[] }
+  | { type: "done"; id: string; course: PlannerCourse; events: PlannerEvent[] }
   | { type: "error"; id: string; message: string }
   | { type: "remove"; id: string }
   | { type: "setTermStart"; date: string }
   | { type: "addEvent"; fileId: string; event: PlannerEvent }
   | { type: "updateEvent"; fileId: string; eventId: string; patch: Partial<PlannerEvent> }
   | { type: "removeEvent"; fileId: string; eventId: string }
+  | { type: "setCourseField"; fileId: string; key: CourseFieldKey; field: PlannerCourseField | null }
 
 function updateFile(state: PlannerState, id: string, patch: Partial<SyllabusFile>) {
   return {
@@ -69,11 +78,22 @@ function reducer(state: PlannerState, action: Action): PlannerState {
       return updateEvents(state, action.fileId, (events) =>
         events.filter((e) => e.id !== action.eventId)
       )
+    case "setCourseField": {
+      const course = state.files.find((f) => f.id === action.fileId)?.course
+      if (!course) return state
+      return updateFile(state, action.fileId, { course: { ...course, [action.key]: action.field } })
+    }
   }
 }
 
 function toPlannerEvents(events: ExtractedEvent[]): PlannerEvent[] {
   return events.map((e) => ({ ...e, id: crypto.randomUUID(), verified: false }))
+}
+
+function toPlannerCourse(course: CourseInfo): PlannerCourse {
+  return Object.fromEntries(
+    Object.entries(course).map(([key, field]) => [key, field && { ...field, verified: false }])
+  ) as PlannerCourse
 }
 
 interface PlannerContextValue {
@@ -85,6 +105,8 @@ interface PlannerContextValue {
   addEvent: (fileId: string) => string
   updateEvent: (fileId: string, eventId: string, patch: Partial<PlannerEvent>) => void
   removeEvent: (fileId: string, eventId: string) => void
+  /** Replaces one course field; null clears it. */
+  setCourseField: (fileId: string, key: CourseFieldKey, field: PlannerCourseField | null) => void
 }
 
 const PlannerContext = createContext<PlannerContextValue | null>(null)
@@ -125,7 +147,12 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       controllers.current.set(id, controller)
       fakeExtract(file, (progress) => dispatch({ type: "progress", id, progress }), controller.signal)
         .then(({ course, events }) =>
-          dispatch({ type: "done", id, course, events: toPlannerEvents(events) })
+          dispatch({
+            type: "done",
+            id,
+            course: toPlannerCourse(course),
+            events: toPlannerEvents(events),
+          })
         )
         .catch((err: unknown) => {
           if (controller.signal.aborted) return
@@ -169,9 +196,24 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
+  const setCourseField = useCallback(
+    (fileId: string, key: CourseFieldKey, field: PlannerCourseField | null) =>
+      dispatch({ type: "setCourseField", fileId, key, field }),
+    []
+  )
+
   return (
     <PlannerContext
-      value={{ state, addFiles, removeFile, setTermStart, addEvent, updateEvent, removeEvent }}
+      value={{
+        state,
+        addFiles,
+        removeFile,
+        setTermStart,
+        addEvent,
+        updateEvent,
+        removeEvent,
+        setCourseField,
+      }}
     >
       {children}
     </PlannerContext>

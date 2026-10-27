@@ -38,12 +38,17 @@ export function EventList({ file, selectedId, onSelect, missingSources }: EventL
   }
 
   return (
-    <section className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3" aria-labelledby={`key-dates-${file.id}`}>
       <div className="flex items-end justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          {events.length} {events.length === 1 ? "date" : "dates"} found
-          {reviewCount > 0 && ` · ${reviewCount} to verify`}
-        </p>
+        <div>
+          <h3 id={`key-dates-${file.id}`} className="text-sm font-semibold">
+            Key dates
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {events.length} {events.length === 1 ? "date" : "dates"} found
+            {reviewCount > 0 && ` · ${reviewCount} to verify`}
+          </p>
+        </div>
         <Button variant="outline" size="sm" onClick={startNewEvent}>
           <Plus />
           Add event

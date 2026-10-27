@@ -1,11 +1,31 @@
 {
   "file": "CS340_Software_Design_Syllabus_USABILITY_TEST.pdf",
   "course": {
-    "name": "CS 340: Software Design",
-    "instructor": "Professor Plana",
-    "meeting_times": "Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04",
-    "office_location": "Millennium Science Building 2.18",
-    "office_hours": "Tuesdays 3:00–4:30 PM and Fridays 10:00–11:00 AM"
+    "name": {
+      "value": "CS 340: Software Design",
+      "source_quote": "CS 340: Software Design Course Syllabus",
+      "page": 1
+    },
+    "instructor": {
+      "value": "Professor Plana",
+      "source_quote": "Instructor Professor Plana",
+      "page": 1
+    },
+    "meeting_times": {
+      "value": "Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04",
+      "source_quote": "Meetings Tuesdays & Thursdays, 1:30–2:45 PM, Millennium Science Building 1.04",
+      "page": 1
+    },
+    "office_location": {
+      "value": "Millennium Science Building 2.18",
+      "source_quote": "Millennium Science Building 2.18",
+      "page": 1
+    },
+    "office_hours": {
+      "value": "Tuesdays 3:00–4:30 PM and Fridays 10:00–11:00 AM",
+      "source_quote": "Office Hours Tuesdays 3:00–4:30 PM and Fridays 10:00–11:00 AM",
+      "page": 1
+    }
   },
   "events": [
     {
