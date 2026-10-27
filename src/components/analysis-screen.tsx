@@ -36,7 +36,7 @@ export function AnalysisScreen() {
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <Link
             href="/"
@@ -47,7 +47,6 @@ export function AnalysisScreen() {
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Review your dates</h1>
         </div>
-        <ExportDialog files={files} missingSources={missingSources} />
       </header>
 
       <Tabs value={active.id} onValueChange={(value) => setActiveId(value)}>
@@ -68,6 +67,8 @@ export function AnalysisScreen() {
               file={f}
               missingSources={missingSources[f.id]}
               onMissingSourcesChange={handleMissingSources}
+              // Export comes after reviewing, so it sits at the end of the list.
+              footer={<ExportDialog files={files} missingSources={missingSources} />}
             />
           </TabsContent>
         ))}
@@ -92,9 +93,15 @@ interface FilePanelProps {
   file: SyllabusFile
   missingSources: Set<string> | undefined
   onMissingSourcesChange: (fileId: string, ids: Set<string>) => void
+  footer: React.ReactNode
 }
 
-function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }: FilePanelProps) {
+function FilePanel({
+  file,
+  missingSources = NO_MISSING,
+  onMissingSourcesChange,
+  footer,
+}: FilePanelProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const reportMissing = useCallback(
     (ids: Set<string>) => onMissingSourcesChange(file.id, ids),
@@ -144,6 +151,7 @@ function FilePanel({ file, missingSources = NO_MISSING, onMissingSourcesChange }
         {file.status === "error" && (
           <p className="text-sm text-destructive">Couldn&apos;t read this file: {file.error}</p>
         )}
+        <div className="pt-3">{footer}</div>
       </div>
 
       <aside

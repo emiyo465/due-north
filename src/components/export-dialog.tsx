@@ -1,7 +1,14 @@
 "use client"
 
 import { useState } from "react"
-import { Calendar, CalendarPlus, ClipboardCopy, FileSpreadsheet, TriangleAlert } from "lucide-react"
+import {
+  Calendar,
+  CalendarPlus,
+  ClipboardCopy,
+  Download,
+  FileSpreadsheet,
+  TriangleAlert,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -40,7 +47,10 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
 
   return (
     <Dialog onOpenChange={(open) => !open && setNotice(null)}>
-      <DialogTrigger render={<Button />}>Export</DialogTrigger>
+      <DialogTrigger render={<Button size="lg" className="h-11 gap-2 px-6 text-base" />}>
+        <Download className="size-5" aria-hidden />
+        Export dates
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Export your dates</DialogTitle>
