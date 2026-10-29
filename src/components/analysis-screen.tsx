@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, CircleAlert, LoaderCircle } from "lucide-react"
+import { ArrowLeft, CircleAlert, LoaderCircle, RotateCw } from "lucide-react"
 import { CourseInfoSection } from "@/components/course-info"
 import { EventList } from "@/components/event-list"
 import { ExportDialog } from "@/components/export-dialog"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePlanner } from "@/lib/planner-store"
 import { COURSE_FIELDS, courseFieldId, type SyllabusFile } from "@/lib/types"
@@ -148,9 +148,7 @@ function FilePanel({
         {file.status === "processing" && (
           <p className="text-sm text-muted-foreground">Still extracting dates from this file…</p>
         )}
-        {file.status === "error" && (
-          <p className="text-sm text-destructive">Couldn&apos;t read this file: {file.error}</p>
-        )}
+        {file.status === "error" && <ExtractionFailed file={file} />}
         <div className="pt-3">{footer}</div>
       </div>
 
@@ -165,6 +163,19 @@ function FilePanel({
           onMissingSourcesChange={reportMissing}
         />
       </aside>
+    </div>
+  )
+}
+
+function ExtractionFailed({ file }: { file: SyllabusFile }) {
+  const { retryFile } = usePlanner()
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-4 text-sm">
+      <p className="text-destructive">Couldn&apos;t extract dates from this file: {file.error}</p>
+      <Button variant="outline" size="sm" onClick={() => retryFile(file.id)}>
+        <RotateCw />
+        Try again
+      </Button>
     </div>
   )
 }

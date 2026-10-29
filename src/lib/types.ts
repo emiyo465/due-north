@@ -91,6 +91,8 @@ export interface SyllabusFile {
   status: FileStatus
   /** 0–100 */
   progress: number
+  /** Use the fixture instead of the API (the example syllabus). */
+  useFixture: boolean
   /** Set once extraction finishes. */
   course: PlannerCourse | null
   events: PlannerEvent[]

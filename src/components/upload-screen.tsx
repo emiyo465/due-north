@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useDropzone, type FileRejection } from "react-dropzone"
-import { CircleAlert, CircleCheck, FileText, LoaderCircle, Upload, X } from "lucide-react"
+import { CircleAlert, CircleCheck, FileText, LoaderCircle, RotateCw, Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +12,7 @@ import { usePlanner } from "@/lib/planner-store"
 import type { SyllabusFile } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-// Claude's PDF input limit; real extraction will reject anything larger.
+// Generous for a syllabus; only the page text is sent on, not the file.
 const MAX_FILE_SIZE = 32 * 1024 * 1024
 const EXAMPLE_SYLLABUS = "/samples/CS340_Software_Design_Syllabus_USABILITY_TEST.pdf"
 
@@ -30,7 +30,7 @@ function rejectionMessage({ file, errors }: FileRejection) {
 
 export function UploadScreen() {
   const router = useRouter()
-  const { state, addFiles, removeFile, setTermStart } = usePlanner()
+  const { state, addFiles, removeFile, retryFile, setTermStart } = usePlanner()
   const { files, termStart } = state
   const [rejections, setRejections] = useState<string[]>([])
   const [loadingExample, setLoadingExample] = useState(false)
@@ -52,7 +52,8 @@ export function UploadScreen() {
       const res = await fetch(EXAMPLE_SYLLABUS)
       const blob = await res.blob()
       const name = EXAMPLE_SYLLABUS.split("/").pop()!
-      addFiles([new File([blob], name, { type: "application/pdf" })])
+      // The example has a hand-checked fixture, so it never spends API credits.
+      addFiles([new File([blob], name, { type: "application/pdf" })], { useFixture: true })
     } finally {
       setLoadingExample(false)
     }
@@ -150,7 +151,12 @@ export function UploadScreen() {
 
           <ul className="flex flex-col divide-y rounded-xl border">
             {files.map((f) => (
-              <FileRow key={f.id} file={f} onRemove={() => removeFile(f.id)} />
+              <FileRow
+                key={f.id}
+                file={f}
+                onRemove={() => removeFile(f.id)}
+                onRetry={() => retryFile(f.id)}
+              />
             ))}
           </ul>
 
@@ -165,7 +171,15 @@ export function UploadScreen() {
   )
 }
 
-function FileRow({ file, onRemove }: { file: SyllabusFile; onRemove: () => void }) {
+function FileRow({
+  file,
+  onRemove,
+  onRetry,
+}: {
+  file: SyllabusFile
+  onRemove: () => void
+  onRetry: () => void
+}) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden />
@@ -184,7 +198,10 @@ function FileRow({ file, onRemove }: { file: SyllabusFile; onRemove: () => void 
       )}
       {file.status === "done" && <CircleCheck className="size-4 text-primary" aria-label="Done" />}
       {file.status === "error" && (
-        <CircleAlert className="size-4 text-destructive" aria-label="Failed" />
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          <RotateCw />
+          Try again
+        </Button>
       )}
       <Button variant="ghost" size="icon-sm" onClick={onRemove} aria-label={`Remove ${file.file.name}`}>
         <X />

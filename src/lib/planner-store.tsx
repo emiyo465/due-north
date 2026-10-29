@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, use, useCallback, useEffect, useReducer, useRef } from "react"
-import { fakeExtract } from "@/lib/fake-extract"
+import { extractFile } from "@/lib/extract-client"
 import type {
   CourseFieldKey,
   CourseInfo,
@@ -12,8 +12,8 @@ import type {
   SyllabusFile,
 } from "@/lib/types"
 
-// Client-only app state. Uploaded PDFs live in memory and are never sent
-// anywhere or persisted.
+// Client-only app state, never persisted. Uploaded PDFs stay in the browser;
+// only their page text is sent to /api/extract.
 
 interface PlannerState {
   /** ISO date the term starts; used later to resolve "Week 5 Friday" etc. */
@@ -27,6 +27,7 @@ type Action =
   | { type: "done"; id: string; course: PlannerCourse; events: PlannerEvent[] }
   | { type: "error"; id: string; message: string }
   | { type: "remove"; id: string }
+  | { type: "retry"; id: string }
   | { type: "setTermStart"; date: string }
   | { type: "addEvent"; fileId: string; event: PlannerEvent }
   | { type: "updateEvent"; fileId: string; eventId: string; patch: Partial<PlannerEvent> }
@@ -66,6 +67,14 @@ function reducer(state: PlannerState, action: Action): PlannerState {
       return updateFile(state, action.id, { status: "error", error: action.message })
     case "remove":
       return { ...state, files: state.files.filter((f) => f.id !== action.id) }
+    case "retry":
+      return updateFile(state, action.id, {
+        status: "processing",
+        progress: 0,
+        error: undefined,
+        course: null,
+        events: [],
+      })
     case "setTermStart":
       return { ...state, termStart: action.date }
     case "addEvent":
@@ -98,8 +107,10 @@ function toPlannerCourse(course: CourseInfo): PlannerCourse {
 
 interface PlannerContextValue {
   state: PlannerState
-  addFiles: (files: File[]) => void
+  addFiles: (files: File[], options?: { useFixture?: boolean }) => void
   removeFile: (id: string) => void
+  /** Runs extraction again for a file, replacing its results. */
+  retryFile: (id: string) => void
   setTermStart: (date: string) => void
   /** Adds a blank, hand-entered event and returns its id. */
   addEvent: (fileId: string) => string
@@ -131,36 +142,72 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("beforeunload", warn)
   }, [hasFiles])
 
-  const addFiles = useCallback((files: File[]) => {
-    const added: SyllabusFile[] = files.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      status: "processing",
-      progress: 0,
-      course: null,
-      events: [],
-    }))
-    dispatch({ type: "add", files: added })
+  // Extraction reads the term start when it runs, not when the callback was created.
+  const termStart = useRef(state.termStart)
+  useEffect(() => {
+    termStart.current = state.termStart
+  }, [state.termStart])
 
-    for (const { id, file } of added) {
-      const controller = new AbortController()
-      controllers.current.set(id, controller)
-      fakeExtract(file, (progress) => dispatch({ type: "progress", id, progress }), controller.signal)
-        .then(({ course, events }) =>
-          dispatch({
-            type: "done",
-            id,
-            course: toPlannerCourse(course),
-            events: toPlannerEvents(events),
-          })
-        )
-        .catch((err: unknown) => {
-          if (controller.signal.aborted) return
-          dispatch({ type: "error", id, message: err instanceof Error ? err.message : "Extraction failed" })
+  const run = useCallback((id: string, file: File, useFixture: boolean) => {
+    controllers.current.get(id)?.abort()
+    const controller = new AbortController()
+    controllers.current.set(id, controller)
+    extractFile(
+      file,
+      { termStart: termStart.current, useFixture },
+      (progress) => dispatch({ type: "progress", id, progress }),
+      controller.signal
+    )
+      .then(({ course, events }) => {
+        if (controller.signal.aborted) return
+        dispatch({
+          type: "done",
+          id,
+          course: toPlannerCourse(course),
+          events: toPlannerEvents(events),
         })
-        .finally(() => controllers.current.delete(id))
-    }
+      })
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return
+        dispatch({ type: "error", id, message: err instanceof Error ? err.message : "Extraction failed" })
+      })
+      .finally(() => {
+        if (controllers.current.get(id) === controller) controllers.current.delete(id)
+      })
   }, [])
+
+  const addFiles = useCallback(
+    (files: File[], options?: { useFixture?: boolean }) => {
+      const useFixture = options?.useFixture ?? false
+      const added: SyllabusFile[] = files.map((file) => ({
+        id: crypto.randomUUID(),
+        file,
+        status: "processing",
+        progress: 0,
+        useFixture,
+        course: null,
+        events: [],
+      }))
+      dispatch({ type: "add", files: added })
+      for (const { id, file } of added) run(id, file, useFixture)
+    },
+    [run]
+  )
+
+  const files = useRef(state.files)
+  useEffect(() => {
+    files.current = state.files
+  }, [state.files])
+
+  const retryFile = useCallback(
+    (id: string) => {
+      const file = files.current.find((f) => f.id === id)
+      if (!file) return
+      dispatch({ type: "retry", id })
+      run(id, file.file, file.useFixture)
+    },
+    [run]
+  )
 
   const removeFile = useCallback((id: string) => {
     controllers.current.get(id)?.abort()
@@ -208,6 +255,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         state,
         addFiles,
         removeFile,
+        retryFile,
         setTermStart,
         addEvent,
         updateEvent,

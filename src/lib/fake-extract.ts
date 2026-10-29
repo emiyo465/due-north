@@ -1,8 +1,8 @@
 import cs340 from "@/fixtures/cs340.json"
 import type { ExtractionResult } from "@/lib/types"
 
-// Stand-in for /api/extract until days 7–10: waits a realistic amount of
-// time, then returns fixture data for known syllabi.
+// Fixture data for known sample syllabi. Used by "Use example syllabus" (no
+// credits spent) and as the fallback when the server has no API key.
 
 const FIXTURES: { match: RegExp; result: ExtractionResult }[] = [
   { match: /cs\s*_?340/i, result: cs340 as ExtractionResult },
@@ -43,5 +43,10 @@ export async function fakeExtract(
     }, 100)
   })
 
-  return FIXTURES.find((f) => f.match.test(file.name))?.result ?? EMPTY_RESULT
+  return fixtureFor(file) ?? EMPTY_RESULT
+}
+
+/** The fixture for a known sample syllabus, if there is one. */
+export function fixtureFor(file: File): ExtractionResult | null {
+  return FIXTURES.find((f) => f.match.test(file.name))?.result ?? null
 }
