@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:extract": "node --env-file=.env.local --experimental-strip-types --no-warnings scripts/check-extraction.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
