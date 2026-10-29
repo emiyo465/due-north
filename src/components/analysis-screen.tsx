@@ -50,10 +50,11 @@ export function AnalysisScreen() {
       </header>
 
       <Tabs value={active.id} onValueChange={(value) => setActiveId(value)}>
+        {/* With many syllabi the tabs wrap onto more rows rather than scroll. */}
         {files.length > 1 && (
-          <TabsList className="max-w-full justify-start overflow-x-auto overflow-y-hidden">
+          <TabsList className="max-w-full flex-wrap justify-start gap-1 group-data-horizontal/tabs:h-auto">
             {files.map((f) => (
-              <TabsTrigger key={f.id} value={f.id} className="flex-none">
+              <TabsTrigger key={f.id} value={f.id} className="h-7 flex-none">
                 {f.status === "processing" && <LoaderCircle className="animate-spin" />}
                 {f.status === "error" && <CircleAlert className="text-destructive" />}
                 <span className="max-w-48 truncate">{f.course?.name?.value ?? f.file.name}</span>
