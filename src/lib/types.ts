@@ -1,4 +1,4 @@
-// Shapes follow the extraction contract in docs/SPEC.md.
+// Shapes follow the extraction contract for /api/extract.
 
 export type EventType = "project" | "paper" | "exam" | "quiz" | "homework" | "other"
 

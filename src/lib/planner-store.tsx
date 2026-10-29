@@ -13,7 +13,7 @@ import type {
 } from "@/lib/types"
 
 // Client-only app state. Uploaded PDFs live in memory and are never sent
-// anywhere or persisted, per the privacy note in docs/SPEC.md.
+// anywhere or persisted.
 
 interface PlannerState {
   /** ISO date the term starts; used later to resolve "Week 5 Friday" etc. */
