@@ -9,7 +9,7 @@ import type { CourseFieldKey, ExtractionResult } from "@/lib/types"
 /** Override with EXTRACT_MODEL (e.g. claude-opus-5-5) and EXTRACT_EFFORT without a code change. */
 const MODEL = process.env.EXTRACT_MODEL || "claude-haiku-5-5"
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const
-const EFFORT = EFFORTS.find((e) => e === process.env.EXTRACT_EFFORT) ?? "low"
+const EFFORT = EFFORTS.find((e) => e === process.env.EXTRACT_EFFORT) ?? "medium"
 
 const CourseFieldSchema = z
   .object({
