@@ -1,6 +1,7 @@
 // Scores real extraction against the hand-labeled answer key.
 //   npm run check:extract            (all syllabi in private/testing/)
 //   npm run check:extract -- PHYS341 (one syllabus, by file-name prefix)
+//   npm run check:extract -- --final (the reformatted syllabi in private/final_eval/)
 // Spends API credits: about $0.002 per syllabus on claude-haiku-5-5.
 // Uses EXTRACT_MODEL / EXTRACT_EFFORT from .env.local like the app does.
 
@@ -21,8 +22,13 @@ interface AnswerKey {
   }[]
 }
 
-const only = process.argv[2]
-const key: AnswerKey = JSON.parse(readFileSync("private/syllabi-answer-key.json", "utf8"))
+const args = process.argv.slice(2)
+const final = args.includes("--final")
+const only = args.find((a) => !a.startsWith("--"))
+const [keyFile, pdfDir] = final
+  ? ["private/final-eval-answer-key.json", "private/final_eval/"]
+  : ["private/syllabi-answer-key.json", "private/testing/"]
+const key: AnswerKey = JSON.parse(readFileSync(keyFile, "utf8"))
 const client = new Anthropic({ timeout: 110_000, maxRetries: 0 })
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 let totalIn = 0, totalOut = 0
@@ -54,7 +60,7 @@ function alignment(items: string[], quote: string) {
 }
 
 for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
-  const pdf = await getDocument({ data: new Uint8Array(readFileSync("private/testing/" + syl.file)), verbosity: 0 }).promise
+  const pdf = await getDocument({ data: new Uint8Array(readFileSync(pdfDir + syl.file)), verbosity: 0 }).promise
   const items: string[][] = [], pages: string[] = []
   for (let n = 1; n <= pdf.numPages; n++) {
     const c = await (await pdf.getPage(n)).getTextContent()
