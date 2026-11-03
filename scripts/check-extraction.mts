@@ -8,7 +8,7 @@ import Anthropic from "@anthropic-ai/sdk"
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs"
 import { readFileSync } from "node:fs"
 import { extractSyllabus } from "../src/lib/server/extract-syllabus.ts"
-import { findQuote } from "../src/lib/quote-match.ts"
+import { findQuote, type QuoteSpan } from "../src/lib/quote-match.ts"
 import type { CourseFieldKey } from "../src/lib/types.ts"
 
 interface AnswerKey {
@@ -26,6 +26,32 @@ const key: AnswerKey = JSON.parse(readFileSync("private/syllabi-answer-key.json"
 const client = new Anthropic({ timeout: 110_000, maxRetries: 0 })
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
 let totalIn = 0, totalOut = 0
+let allQuotes = 0, allTight = 0
+
+// Text the highlight skips over between its pieces (spaces don't count). A
+// tight highlight covers just the quote; skipped text means the match was
+// stitched from separate cells, which may be the wrong row.
+function skipped(items: string[], spans: QuoteSpan[]) {
+  let out = ""
+  for (let i = 1; i < spans.length; i++) {
+    const a = spans[i - 1], b = spans[i]
+    out += a.item === b.item
+      ? items[a.item].slice(a.end, b.start)
+      : items[a.item].slice(a.end) + items.slice(a.item + 1, b.item).join("") + items[b.item].slice(0, b.start)
+  }
+  return out.replace(/\s+/g, " ").trim()
+}
+
+// Records one quote's alignment; returns a note if it isn't tight.
+function alignment(items: string[], quote: string) {
+  const spans = findQuote(items, quote)
+  if (!spans) return null
+  allQuotes++
+  const gap = skipped(items, spans)
+  if (!gap) { allTight++; return null }
+  const shown = spans.map((s) => items[s.item].slice(s.start, s.end)).join(" … ")
+  return `highlight skips ${JSON.stringify(gap.slice(0, 60))}: ${JSON.stringify(shown)}`
+}
 
 for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
   const pdf = await getDocument({ data: new Uint8Array(readFileSync("private/testing/" + syl.file)), verbosity: 0 }).promise
@@ -47,6 +73,8 @@ for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
     const quoteFound = got ? !!findQuote(items[got.page - 1] ?? [], got.source_quote) : null
     const same = norm(got?.value ?? "") === norm(want ?? "")
     console.log(`  course.${k.padEnd(16)} ${same ? "same " : "DIFF "} got=${JSON.stringify(got?.value ?? null)}${same ? "" : `  want=${JSON.stringify(want)}`}  quote ${quoteFound === null ? "-" : quoteFound ? "found" : "NOT FOUND"}`)
+    const note = got && alignment(items[got.page - 1] ?? [], got.source_quote)
+    if (note) console.log(`          ${note}`)
   }
 
   // Events: match by date, then by title words.
@@ -67,7 +95,8 @@ for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
       if (e.time === want.time) timeOk++
       if (e.type === want.type) typeOk++
       const q = !!findQuote(items[e.page - 1] ?? [], e.source_quote)
-      const notes = [e.time !== want.time && `time ${e.time} vs ${want.time}`, e.type !== want.type && `type ${e.type} vs ${want.type}`, !q && "QUOTE NOT FOUND", e.confidence !== "high" && `conf ${e.confidence}`].filter(Boolean)
+      const align = alignment(items[e.page - 1] ?? [], e.source_quote)
+      const notes = [align, e.time !== want.time && `time ${e.time} vs ${want.time}`, e.type !== want.type && `type ${e.type} vs ${want.type}`, !q && "QUOTE NOT FOUND", e.confidence !== "high" && `conf ${e.confidence}`].filter(Boolean)
       console.log(`  ok    ${want.due_date ?? "no date"}  ${want.title}${notes.length ? "  [" + notes.join("; ") + "]" : ""}`)
       if (!q) console.log(`          quote p${e.page}: ${JSON.stringify(e.source_quote)}`)
     } else {
@@ -82,4 +111,5 @@ for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
   const quotesFound = r.events.filter((e) => findQuote(items[e.page - 1] ?? [], e.source_quote)).length
   console.log(`  recall ${hit}/${syl.events.length} · precision ${hit}/${r.events.length} · time ${timeOk}/${hit} · type ${typeOk}/${hit} · quotes found ${quotesFound}/${r.events.length}`)
 }
-console.log(`\nTotal ${totalIn} in / ${totalOut} out tokens ≈ $${(totalIn * 0.1e-6 + totalOut * 0.5e-6).toFixed(4)} at Haiku 5.5 prices`)
+console.log(`\nHighlights covering just the quote: ${allTight}/${allQuotes} (course fields and matched events)`)
+console.log(`Total ${totalIn} in / ${totalOut} out tokens ≈ $${(totalIn * 0.1e-6 + totalOut * 0.5e-6).toFixed(4)} at Haiku 5.5 prices`)
