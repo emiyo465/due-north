@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
 import { ExtractionError, extractSyllabus } from "@/lib/server/extract-syllabus"
+import { checkRateLimit, clientIp } from "@/lib/server/rate-limit"
 
 // POST { fileName, termStart, pages: string[] } → { course, events, model, usage }.
 // The browser extracts the page text, so the PDF itself never reaches the server.
@@ -23,6 +24,18 @@ function error(status: number, code: string, message: string) {
 export async function POST(request: Request) {
   if (!client) {
     return error(503, "not_configured", "Extraction isn't set up on this server.")
+  }
+
+  const retryAfter = checkRateLimit(clientIp(request))
+  if (retryAfter) {
+    const minutes = Math.ceil(retryAfter / 60)
+    const res = error(
+      429,
+      "rate_limited",
+      `Too many syllabi from this network. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+    )
+    res.headers.set("Retry-After", String(retryAfter))
+    return res
   }
 
   let body: unknown
