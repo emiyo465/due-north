@@ -128,14 +128,17 @@
     @apply font-sans;
   }
 }
-/* Source highlights drawn over the pdf.js text layer (see pdf-viewer.tsx). */
-.textLayer mark.pdf-hl {
-  color: transparent;
-  background: oklch(0.9 0.16 95 / 0.4);
+/* Source highlights positioned over each PDF page (see pdf-viewer.tsx).
+   Multiply keeps the page's text readable through the color. */
+.pdf-hl {
+  position: absolute;
+  background: oklch(0.9 0.16 95 / 0.5);
   border-radius: 2px;
+  mix-blend-mode: multiply;
 }
 
-.textLayer mark.pdf-hl-active {
-  background: oklch(0.85 0.17 85 / 0.7);
+.pdf-hl-active {
+  background: oklch(0.85 0.17 85 / 0.85);
   outline: 2px solid oklch(0.75 0.17 70);
+  outline-offset: 1px;
 }
