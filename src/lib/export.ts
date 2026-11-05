@@ -24,6 +24,8 @@ export interface ClassExport {
   /** ISO dates, both inclusive. */
   firstDay: string
   lastDay: string
+  /** Shown in each class event's description. */
+  notes?: string
 }
 
 export interface IcsOptions {
@@ -98,7 +100,10 @@ function atTime(date: Date, time: string) {
   return [date.getFullYear(), date.getMonth() + 1, date.getDate(), hours, minutes] as DateArray
 }
 
-function meetingEvent(meeting: ClassMeeting, { course, schedule, firstDay, lastDay }: ClassExport) {
+function meetingEvent(
+  meeting: ClassMeeting,
+  { course, schedule, firstDay, lastDay, notes }: ClassExport
+) {
   let first = parseISO(firstDay)
   const last = parseISO(lastDay)
   while (first <= last && !meeting.days.includes(weekdayOf(first))) first = addDays(first, 1)
@@ -121,6 +126,7 @@ function meetingEvent(meeting: ClassMeeting, { course, schedule, firstDay, lastD
     productId: "automated-semester-planner",
   }
   if (meeting.location) event.location = meeting.location
+  if (notes) event.description = notes
   if (skipped.length > 0) event.exclusionDates = skipped
   return event
 }
@@ -152,6 +158,16 @@ export function toIcs(events: ExportEvent[], { allDayDeadlines = false, classes 
   const { error, value } = createEvents(attributes)
   if (error || !value) throw error ?? new Error("Couldn't create the calendar file")
   return value
+}
+
+/** Office details for class events, from Class info so edits carry through. */
+export function officeNotes({ course }: Pick<SyllabusFile, "course">) {
+  return [
+    course?.office_hours && `Office hours: ${course.office_hours.value}`,
+    course?.office_location && `Office: ${course.office_location.value}`,
+  ]
+    .filter(Boolean)
+    .join("\n")
 }
 
 /** The day to stop repeating a course's classes, if the syllabus suggests one. */

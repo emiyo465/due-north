@@ -4,6 +4,7 @@ import {
   courseLabel,
   defaultClassEnd,
   formatMeeting,
+  officeNotes,
   toCsv,
   toIcs,
   toPlainText,
@@ -189,9 +190,33 @@ describe("toIcs with class meetings", () => {
     expect(ics).toContain("SUMMARY:CS 340: Lab")
   })
 
+  it("puts notes in the class event's description", () => {
+    const ics = toIcs([], { classes: [{ ...classes[0], notes: "Office hours: Tue 3 PM\nOffice: MSB 2.18" }] })
+    expect(icsField(ics, "DESCRIPTION")).toBe("Office hours: Tue 3 PM\\nOffice: MSB 2.18")
+  })
+
+  it("leaves the description out without notes", () => {
+    expect(icsField(toIcs([], { classes }), "DESCRIPTION")).toBeUndefined()
+  })
+
   it("leaves out a meeting that never falls in the range", () => {
     const short = [{ ...classes[0], firstDay: "2026-09-09", lastDay: "2026-09-09" }]
     expect(() => toIcs([], { classes: short })).not.toThrow()
+  })
+})
+
+describe("officeNotes", () => {
+  const field = (value: string) => ({ value, source_quote: "", page: 1, verified: false })
+
+  it("lists whichever office details the course has", () => {
+    const course = { office_hours: field("Tue 3 PM"), office_location: field("MSB 2.18") } as never
+    expect(officeNotes({ course })).toBe("Office hours: Tue 3 PM\nOffice: MSB 2.18")
+    const hoursOnly = { office_hours: field("Tue 3 PM"), office_location: null } as never
+    expect(officeNotes({ course: hoursOnly })).toBe("Office hours: Tue 3 PM")
+  })
+
+  it("is empty without details", () => {
+    expect(officeNotes({ course: null })).toBe("")
   })
 })
 
