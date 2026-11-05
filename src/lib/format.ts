@@ -6,6 +6,11 @@ export function formatDate(isoDate: string) {
   return format(parseISO(isoDate), "EEE, MMM d")
 }
 
+/** "2026-09-17" → "Thu, Sep 17, 2026" */
+export function formatDateWithYear(isoDate: string) {
+  return format(parseISO(isoDate), "EEE, MMM d, yyyy")
+}
+
 /** "13:30" → "1:30 PM" */
 export function formatTime(time: string) {
   return format(parse(time, "HH:mm", new Date()), "h:mm a")

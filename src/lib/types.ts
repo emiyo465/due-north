@@ -73,6 +73,10 @@ export const EVENT_TYPES:{ value: EventType; label: string }[] = [
   { value: "other", label: "Other" },
 ]
 
+export const EVENT_TYPE_LABELS = Object.fromEntries(
+  EVENT_TYPES.map((t) => [t.value, t.label])
+) as Record<EventType, string>
+
 /**
  * Show a verify badge until the user confirms anything we weren't sure of,
  * including events whose source quote couldn't be found in the PDF.
