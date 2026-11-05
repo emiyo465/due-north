@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CircleCheck, FileSearch, Pencil, Trash2, TriangleAlert } from "lucide-react"
+import { CircleCheck, FileSearch, Pencil, Trash2, TriangleAlert, Undo2 } from "lucide-react"
 import { rowHoverProps } from "@/components/row-hover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -55,6 +55,20 @@ export function EventRow({ event, editing, selected, hovered, onHover, ...rest }
       ) : (
         <EventView event={event} {...rest} />
       )}
+    </li>
+  )
+}
+
+/** A deleted event, kept in place so a misclick can be undone. */
+export function RemovedEventRow({ event, onUndo }: { event: PlannerEvent; onUndo: () => void }) {
+  const label = event.title || "Untitled event"
+  return (
+    <li className="flex items-center justify-between gap-3 px-4 py-3">
+      <p className="min-w-0 text-sm text-muted-foreground italic">Removed: {label}</p>
+      <Button variant="outline" size="sm" onClick={onUndo} aria-label={`Undo removing ${label}`}>
+        <Undo2 />
+        Undo
+      </Button>
     </li>
   )
 }

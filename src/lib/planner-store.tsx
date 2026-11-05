@@ -125,6 +125,8 @@ interface PlannerContextValue {
   addEvent: (fileId: string) => string
   updateEvent: (fileId: string, eventId: string, patch: Partial<PlannerEvent>) => void
   removeEvent: (fileId: string, eventId: string) => void
+  /** Puts a removed event back as it was. */
+  restoreEvent: (fileId: string, event: PlannerEvent) => void
   /** Replaces one course field; null clears it. */
   setCourseField: (fileId: string, key: CourseFieldKey, field: PlannerCourseField | null) => void
 }
@@ -254,6 +256,11 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     []
   )
 
+  const restoreEvent = useCallback(
+    (fileId: string, event: PlannerEvent) => dispatch({ type: "addEvent", fileId, event }),
+    []
+  )
+
   const setCourseField = useCallback(
     (fileId: string, key: CourseFieldKey, field: PlannerCourseField | null) =>
       dispatch({ type: "setCourseField", fileId, key, field }),
@@ -271,6 +278,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         addEvent,
         updateEvent,
         removeEvent,
+        restoreEvent,
         setCourseField,
       }}
     >
