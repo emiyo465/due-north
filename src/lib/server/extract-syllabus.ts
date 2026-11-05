@@ -21,11 +21,23 @@ const CourseFieldSchema = z
   })
   .nullable()
 
+// Code and title are separate so the server can always join them the same way;
+// asked for one string, the model drifts on the colon between them.
+const CourseNameSchema = z
+  .object({
+    code: z
+      .string()
+      .nullable()
+      .describe("Course code exactly as printed, e.g. 'CS 340', or null if the syllabus has none."),
+    title: z.string().describe("Full course title without the code."),
+    source_quote: z.string().describe("Exact text copied from the page that shows the title or code."),
+    page: z.number().int().describe("Page number the quote is on."),
+  })
+  .nullable()
+
 const ExtractionSchema = z.object({
   course: z.object({
-    name: CourseFieldSchema.describe(
-      "Course code, a colon, then the title, e.g. 'CS 340: Software Design', even if the code and title appear apart."
-    ),
+    name: CourseNameSchema,
     instructor: CourseFieldSchema,
     meeting_times: CourseFieldSchema.describe(
       "Days, times, and room of class meetings. If there is both a lecture and a lab, include both, e.g. 'Lecture MON WED FRI 10:00-10:50, MSB 1.12; lab THU 14:00-16:50, MSB B1-07'."
@@ -48,7 +60,10 @@ const ExtractionSchema = z.object({
         location: z.string().nullable().describe("Building and room, or null if not stated."),
       })
     ),
-    last_day: z.string().nullable().describe("YYYY-MM-DD, or null if the syllabus doesn't show it."),
+    last_day: z
+      .string()
+      .nullable()
+      .describe("YYYY-MM-DD. Work it out from a dated weekly schedule if it isn't stated; null only if there is neither."),
     no_class_dates: z.array(z.string()).describe("YYYY-MM-DD for each date."),
   }),
   events: z.array(
@@ -94,11 +109,12 @@ Quotes and pages
 
 Course details
 - Use null for any field the syllabus does not state. Include rooms and buildings where the syllabus gives them. The meeting_times field keeps its room even though schedule repeats it.
+- Course codes come in many formats, such as "CS 340", "ART:2210", "21M.301", or "PLNT/SOIL 4050W", and may sit apart from the title, on their own line or under a label such as "Course No.". If a course has several codes, use the main one, not a cross-listing or prerequisite.
 
 Class schedule
-- meetings holds the regular weekly class times, one entry per distinct time, so a lecture and a lab are separate entries. Use an empty list if the syllabus gives no regular times. Office hours and exams are not meetings.
-- last_day is the last regular class day. If the syllabus doesn't state it but has a dated weekly schedule, use the last dated class in that schedule, skipping finals and exam-period rows. Use null only if neither exists, and never guess.
-- no_class_dates lists every date in the term that class is stated not to meet, such as holidays. List each day of a break separately. Use an empty list if none are stated.
+- meetings holds the regular weekly class times, one entry per distinct time and room, so a lecture and a lab are separate entries, and so are days that meet at the same time in different rooms. Use an empty list if the syllabus gives no regular times. Office hours and exams are not meetings.
+- last_day is the last regular class day. If the syllabus doesn't state it but has a dated weekly schedule, take the last date in that schedule's final class week, skipping finals and exam-period rows. Use null only if neither exists, and never guess.
+- no_class_dates lists every date in the term that class is stated not to meet, such as holidays. List each day of a break separately. Use an empty list if none are stated. In a schedule with a column per weekday, "No meeting" cancels only that column's weekday. If such a row shows a single date, that date belongs to the column that does have class, so it is not a no-class date.
 
 Confidence
 - high: the date is stated outright. Applying the term's year or a default time the syllabus states (such as "11:59 PM unless noted") still counts as high.
@@ -166,8 +182,15 @@ export async function extractSyllabus(client: Anthropic, input: ExtractInput): P
   // The schema guarantees the shape; these checks catch values a schema can't.
   const clampPage = (page: number) => Math.min(Math.max(1, Math.round(page)), Math.max(1, pageCount))
 
+  const { name, ...fields } = parsed.course
+  const nameField = name && {
+    value: [name.code?.trim(), name.title.trim()].filter(Boolean).join(": "),
+    source_quote: name.source_quote,
+    page: name.page,
+  }
+
   const course = Object.fromEntries(
-    Object.entries(parsed.course).map(([key, field]) => [
+    Object.entries({ name: nameField, ...fields }).map(([key, field]) => [
       key,
       field && field.value.trim()
         ? { value: field.value.trim(), source_quote: field.source_quote.trim(), page: clampPage(field.page) }

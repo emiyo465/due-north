@@ -34,10 +34,13 @@ export interface IcsOptions {
   classes?: ClassExport[]
 }
 
+// A code with colons of its own, such as "07:081:221" or "ART:2210".
+const COLON_CODE = /^[^\s:]*(?::\d+)+(?=[:\s]|$)/
+
 /** "CS 340: Software Design" → "CS 340"; falls back to the file name. */
 export function courseLabel(file: Pick<SyllabusFile, "course" | "file">) {
   const name = file.course?.name?.value.trim()
-  if (name) return name.split(":")[0].trim() || name
+  if (name) return name.match(COLON_CODE)?.[0] ?? (name.split(":")[0].trim() || name)
   return file.file.name.replace(/\.pdf$/i, "")
 }
 

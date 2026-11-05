@@ -61,6 +61,19 @@ describe("courseLabel", () => {
     expect(courseLabel(named("CS 340: Software Design"))).toBe("CS 340")
   })
 
+  it("keeps colons inside the course code", () => {
+    expect(courseLabel(named("07:081:221: Drawing the Figure: Gesture and Light"))).toBe("07:081:221")
+    expect(courseLabel(named("ART:2210: Life Drawing"))).toBe("ART:2210")
+  })
+
+  it("finds a colon code with no colon before the title", () => {
+    expect(courseLabel(named("07:081:221 Drawing the Figure: Gesture and Light"))).toBe("07:081:221")
+  })
+
+  it("keeps slashes and spaces in the course code", () => {
+    expect(courseLabel(named("BOT/ENV ST 312H: Botany of Shade and Stone"))).toBe("BOT/ENV ST 312H")
+  })
+
   it("uses the whole name when there's no colon", () => {
     expect(courseLabel(named("Software Design"))).toBe("Software Design")
   })
