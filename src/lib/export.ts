@@ -160,9 +160,10 @@ export function toIcs(events: ExportEvent[], { allDayDeadlines = false, classes 
   return value
 }
 
-/** Office details for class events, from Class info so edits carry through. */
-export function officeNotes({ course }: Pick<SyllabusFile, "course">) {
+/** Instructor and office details for class events, from Class info so edits carry through. */
+export function classNotes({ course }: Pick<SyllabusFile, "course">) {
   return [
+    course?.instructor && `Instructor: ${course.instructor.value}`,
     course?.office_hours && `Office hours: ${course.office_hours.value}`,
     course?.office_location && `Office: ${course.office_location.value}`,
   ]

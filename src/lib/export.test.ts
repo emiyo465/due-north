@@ -4,7 +4,7 @@ import {
   courseLabel,
   defaultClassEnd,
   formatMeeting,
-  officeNotes,
+  classNotes,
   toCsv,
   toIcs,
   toPlainText,
@@ -205,18 +205,27 @@ describe("toIcs with class meetings", () => {
   })
 })
 
-describe("officeNotes", () => {
+describe("classNotes", () => {
   const field = (value: string) => ({ value, source_quote: "", page: 1, verified: false })
 
-  it("lists whichever office details the course has", () => {
-    const course = { office_hours: field("Tue 3 PM"), office_location: field("MSB 2.18") } as never
-    expect(officeNotes({ course })).toBe("Office hours: Tue 3 PM\nOffice: MSB 2.18")
-    const hoursOnly = { office_hours: field("Tue 3 PM"), office_location: null } as never
-    expect(officeNotes({ course: hoursOnly })).toBe("Office hours: Tue 3 PM")
+  it("lists the instructor first, then office details", () => {
+    const course = {
+      instructor: field("Professor Plana"),
+      office_hours: field("Tue 3 PM"),
+      office_location: field("MSB 2.18"),
+    } as never
+    expect(classNotes({ course })).toBe(
+      "Instructor: Professor Plana\nOffice hours: Tue 3 PM\nOffice: MSB 2.18"
+    )
+  })
+
+  it("lists whichever details the course has", () => {
+    const hoursOnly = { instructor: null, office_hours: field("Tue 3 PM"), office_location: null } as never
+    expect(classNotes({ course: hoursOnly })).toBe("Office hours: Tue 3 PM")
   })
 
   it("is empty without details", () => {
-    expect(officeNotes({ course: null })).toBe("")
+    expect(classNotes({ course: null })).toBe("")
   })
 })
 

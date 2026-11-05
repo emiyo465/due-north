@@ -24,7 +24,7 @@ import {
   courseLabel,
   defaultClassEnd,
   formatMeeting,
-  officeNotes,
+  classNotes,
   toCsv,
   toIcs,
   toPlainText,
@@ -90,7 +90,7 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [allDayDeadlines, setAllDayDeadlines] = useState(true)
   const [includeClasses, setIncludeClasses] = useState(false)
-  const [includeOffice, setIncludeOffice] = useState(true)
+  const [includeDetails, setIncludeDetails] = useState(true)
   // Only the end dates the user changed; the rest come from defaultClassEnd.
   const [classEnds, setClassEnds] = useState<Record<string, string>>({})
 
@@ -114,7 +114,7 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
                 schedule: f.schedule,
                 firstDay: state.termStart,
                 lastDay: classEnd(f),
-                notes: includeOffice ? officeNotes(f) : "",
+                notes: includeDetails ? classNotes(f) : "",
               },
             ]
           : []
@@ -198,15 +198,15 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
               )}
             </span>
           </label>
-          {includeClasses && coursesWithClasses.some((f) => officeNotes(f)) && (
+          {includeClasses && coursesWithClasses.some((f) => classNotes(f)) && (
             <label className="ml-6 flex items-start gap-2">
               <input
                 type="checkbox"
                 className="mt-0.5 size-4 accent-primary"
-                checked={includeOffice}
-                onChange={(e) => setIncludeOffice(e.target.checked)}
+                checked={includeDetails}
+                onChange={(e) => setIncludeDetails(e.target.checked)}
               />
-              <span>Add office hours and location to class event notes</span>
+              <span>Add instructor and office details to class event notes</span>
             </label>
           )}
           {includeClasses &&
