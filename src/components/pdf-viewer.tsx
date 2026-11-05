@@ -5,13 +5,14 @@ import { Document, Page, pdfjs } from "react-pdf"
 import type { PDFDocumentProxy } from "pdfjs-dist"
 import { LoaderCircle, ZoomIn, ZoomOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import "@/lib/pdf-safari"
 import { findQuote, type QuoteSpan } from "@/lib/quote-match"
 import { cn } from "@/lib/utils"
 import "react-pdf/dist/Page/TextLayer.css"
 
 // Must be set in the same module that renders <Document> (see react-pdf docs).
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString()
 
@@ -164,7 +165,10 @@ export default function PdfViewer({
     Promise.all(
       Array.from({ length: pdf.numPages }, async (_, i): Promise<PageInfo> => {
         const page = await pdf.getPage(i + 1)
-        const content = await page.getTextContent()
+        // Without text a page can still display; its quotes just show as not found.
+        const content = await page
+          .getTextContent()
+          .catch(() => ({ items: [], styles: {}, lang: null }))
         const viewport = page.getViewport({ scale: 1 })
         return {
           items: content.items.map((item) =>

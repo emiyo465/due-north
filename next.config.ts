@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
+    // The legacy build carries fallbacks for features older iPhones lack.
+    resolveAlias: {
+      "pdfjs-dist": "pdfjs-dist/legacy/build/pdf.mjs",
+    },
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],
