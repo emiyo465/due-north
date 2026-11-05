@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { CircleCheck, FileSearch, Pencil, Plus, TriangleAlert } from "lucide-react"
+import { CircleCheck, FileSearch, Pencil, Plus, Trash2, TriangleAlert, Undo2 } from "lucide-react"
 import { rowHoverProps } from "@/components/row-hover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -38,6 +38,8 @@ export function CourseInfoSection({
 }: CourseInfoSectionProps) {
   const { setCourseField } = usePlanner()
   const [editingKey, setEditingKey] = useState<CourseFieldKey | null>(null)
+  // What the user cleared, so the row can say so and bring it back.
+  const [removed, setRemoved] = useState<Partial<Record<CourseFieldKey, PlannerCourseField>>>({})
   const course = file.course
   if (!course) return null
 
@@ -63,6 +65,7 @@ export function CourseInfoSection({
             label={label}
             inputId={`course-${file.id}-${key}`}
             field={course[key]}
+            removed={Boolean(removed[key])}
             editing={editingKey === key}
             sourceId={courseFieldId(key)}
             selected={selectedId === courseFieldId(key)}
@@ -74,6 +77,7 @@ export function CourseInfoSection({
             onCancel={() => setEditingKey(null)}
             onSave={(value) => {
               const field = course[key]
+              if (!value && field) setRemoved((prev) => ({ ...prev, [key]: field }))
               // Saving means the user has checked it, so it counts as verified.
               setCourseField(
                 file.id,
@@ -86,6 +90,7 @@ export function CourseInfoSection({
               )
               setEditingKey(null)
             }}
+            onUndo={() => setCourseField(file.id, key, removed[key] ?? null)}
             onToggleVerified={() => {
               const field = course[key]
               if (field) setCourseField(file.id, key, { ...field, verified: !field.verified })
@@ -101,6 +106,8 @@ interface CourseRowProps {
   label: string
   inputId: string
   field: PlannerCourseField | null
+  /** The user cleared this field, as opposed to the syllabus not having it. */
+  removed: boolean
   sourceId: string
   editing: boolean
   selected: boolean
@@ -111,6 +118,7 @@ interface CourseRowProps {
   onEdit: () => void
   onCancel: () => void
   onSave: (value: string) => void
+  onUndo: () => void
   onToggleVerified: () => void
 }
 
@@ -118,6 +126,7 @@ function CourseRow({
   label,
   inputId,
   field,
+  removed,
   sourceId,
   editing,
   selected,
@@ -159,7 +168,9 @@ function CourseRow({
             {field ? (
               <p className="text-sm break-words">{field.value}</p>
             ) : (
-              <p className="text-sm text-muted-foreground italic">Not found in syllabus</p>
+              <p className="text-sm text-muted-foreground italic">
+                {removed ? "Removed" : "Not found in syllabus"}
+              </p>
             )}
             {field && (
               <div className="flex flex-wrap items-center gap-1.5">
@@ -211,12 +222,33 @@ function CourseRow({
                 >
                   <Pencil />
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => handlers.onSave("")}
+                  aria-label={`Clear ${label}`}
+                >
+                  <Trash2 />
+                </Button>
               </>
             ) : (
-              <Button variant="outline" size="sm" onClick={handlers.onEdit}>
-                <Plus />
-                Add
-              </Button>
+              <>
+                {removed && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlers.onUndo}
+                    aria-label={`Undo removing ${label}`}
+                  >
+                    <Undo2 />
+                    Undo
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handlers.onEdit}>
+                  <Plus />
+                  Add
+                </Button>
+              </>
             )}
           </div>
         </div>
