@@ -4,7 +4,7 @@ import { z } from "zod"
 import type { CourseFieldKey, ExtractionResult } from "@/lib/types"
 
 // Server-only: calls Claude to turn a syllabus's page text into the
-// { course, events } shape in src/lib/types.ts.
+// { course, schedule, events } shape in src/lib/types.ts.
 
 /** Override with EXTRACT_MODEL (e.g. claude-opus-5-5) and EXTRACT_EFFORT without a code change. */
 const MODEL = process.env.EXTRACT_MODEL || "claude-haiku-5-5"
@@ -34,6 +34,22 @@ const ExtractionSchema = z.object({
     office_hours: CourseFieldSchema.describe(
       "Office-hours days and times without the room, keeping qualifiers such as 'or by appointment'."
     ),
+  }),
+  schedule: z.object({
+    meetings: z.array(
+      z.object({
+        label: z
+          .string()
+          .nullable()
+          .describe("'Lecture', 'Lab', etc. when the course has more than one kind of meeting, otherwise null."),
+        days: z.array(z.enum(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])),
+        start: z.string().describe("24-hour HH:mm."),
+        end: z.string().describe("24-hour HH:mm."),
+        location: z.string().nullable().describe("Building and room, or null if not stated."),
+      })
+    ),
+    last_day: z.string().nullable().describe("YYYY-MM-DD, or null if the syllabus doesn't show it."),
+    no_class_dates: z.array(z.string()).describe("YYYY-MM-DD for each date."),
   }),
   events: z.array(
     z.object({
@@ -77,7 +93,12 @@ Quotes and pages
 - For course fields, the quote includes the label that introduces the value (for example "Office Hours Tuesdays 3:00-4:30 PM"), because bare values like the course name also appear in page headers and footers.
 
 Course details
-- Use null for any field the syllabus does not state. Include rooms and buildings where the syllabus gives them.
+- Use null for any field the syllabus does not state. Include rooms and buildings where the syllabus gives them. The meeting_times field keeps its room even though schedule repeats it.
+
+Class schedule
+- meetings holds the regular weekly class times, one entry per distinct time, so a lecture and a lab are separate entries. Use an empty list if the syllabus gives no regular times. Office hours and exams are not meetings.
+- last_day is the last regular class day. If the syllabus doesn't state it but has a dated weekly schedule, use the last dated class in that schedule, skipping finals and exam-period rows. Use null only if neither exists, and never guess.
+- no_class_dates lists every date in the term that class is stated not to meet, such as holidays. List each day of a break separately. Use an empty list if none are stated.
 
 Confidence
 - high: the date is stated outright. Applying the term's year or a default time the syllabus states (such as "11:59 PM unless noted") still counts as high.
@@ -154,6 +175,20 @@ export async function extractSyllabus(client: Anthropic, input: ExtractInput): P
     ])
   ) as Record<CourseFieldKey, ExtractionResult["course"][CourseFieldKey]>
 
+  const schedule = {
+    meetings: parsed.schedule.meetings
+      .filter((m) => m.days.length > 0 && TIME.test(m.start) && TIME.test(m.end) && m.start < m.end)
+      .map((m) => ({
+        label: m.label?.trim() || null,
+        days: [...new Set(m.days)],
+        start: m.start,
+        end: m.end,
+        location: m.location?.trim() || null,
+      })),
+    last_day: parsed.schedule.last_day && isRealDate(parsed.schedule.last_day) ? parsed.schedule.last_day : null,
+    no_class_dates: [...new Set(parsed.schedule.no_class_dates)].filter(isRealDate),
+  }
+
   const events = parsed.events.map((event) => {
     const validDate = event.due_date !== null && isRealDate(event.due_date)
     return {
@@ -169,6 +204,7 @@ export async function extractSyllabus(client: Anthropic, input: ExtractInput): P
 
   return {
     course,
+    schedule,
     events,
     model: response.model,
     usage: { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens },

@@ -18,11 +18,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { collectExportEvents, toCsv, toIcs, toPlainText } from "@/lib/export"
+import { Input } from "@/components/ui/input"
+import {
+  collectExportEvents,
+  courseLabel,
+  defaultClassEnd,
+  formatMeeting,
+  toCsv,
+  toIcs,
+  toPlainText,
+  type ClassExport,
+  type IcsOptions,
+} from "@/lib/export"
+import { usePlanner } from "@/lib/planner-store"
 import { needsReview, type SyllabusFile } from "@/lib/types"
 
 const FILE_NAME = "semester-dates"
-const ICS = { extension: "ics", mimeType: "text/calendar", build: toIcs }
+const ICS = { extension: "ics", mimeType: "text/calendar", build: toIcs, calendar: true }
 
 // Google Calendar imports the .ics until direct insert lands in week 3.
 const TARGETS = [
@@ -39,6 +51,7 @@ const TARGETS = [
     extension: "txt",
     mimeType: "text/plain",
     build: toPlainText,
+    calendar: false,
     next: "",
   },
   {
@@ -47,6 +60,7 @@ const TARGETS = [
     extension: "csv",
     mimeType: "text/csv",
     build: toCsv,
+    calendar: false,
     next: "",
   },
 ]
@@ -71,7 +85,12 @@ interface ExportDialogProps {
 }
 
 export function ExportDialog({ files, missingSources }: ExportDialogProps) {
+  const { state } = usePlanner()
   const [notice, setNotice] = useState<string | null>(null)
+  const [allDayDeadlines, setAllDayDeadlines] = useState(true)
+  const [includeClasses, setIncludeClasses] = useState(false)
+  // Only the end dates the user changed; the rest come from defaultClassEnd.
+  const [classEnds, setClassEnds] = useState<Record<string, string>>({})
 
   const done = files.filter((f) => f.status === "done")
   const { dated, undatedCount } = collectExportEvents(files)
@@ -82,10 +101,32 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
   const source =
     done.length === 1 ? (done[0].course?.name?.value ?? done[0].file.name) : `${done.length} syllabi`
 
+  const coursesWithClasses = done.filter((f) => f.schedule?.meetings.length)
+  const classEnd = (f: SyllabusFile) => classEnds[f.id] ?? defaultClassEnd(f) ?? ""
+  const classes: ClassExport[] = includeClasses
+    ? coursesWithClasses.flatMap((f) =>
+        f.schedule && classEnd(f)
+          ? [
+              {
+                course: courseLabel(f),
+                schedule: f.schedule,
+                firstDay: state.termStart,
+                lastDay: classEnd(f),
+              },
+            ]
+          : []
+      )
+    : []
+  const icsOptions: IcsOptions = { allDayDeadlines, classes }
+
   function exportTo(target: (typeof TARGETS)[number]) {
     try {
-      downloadFile(target.build(dated), target.extension, target.mimeType)
-      setNotice(`Downloaded ${countDates(dated.length)}. ${target.next}`.trim())
+      downloadFile(target.build(dated, icsOptions), target.extension, target.mimeType)
+      const withClasses =
+        target.calendar && classes.length > 0
+          ? ` and class times for ${classes.length} ${classes.length === 1 ? "course" : "courses"}`
+          : ""
+      setNotice(`Downloaded ${countDates(dated.length)}${withClasses}. ${target.next}`.trim())
     } catch {
       setNotice(`Couldn't create the ${target.label} file. Check the dates and try again.`)
     }
@@ -97,7 +138,7 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
         <Download className="size-5" aria-hidden />
         Export dates
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Export your dates</DialogTitle>
           <DialogDescription>
@@ -120,6 +161,67 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
             {undatedCount} {undatedCount === 1 ? "event" : "events"} without a date will be left out.
           </p>
         )}
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 font-medium">Calendar options</legend>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={allDayDeadlines}
+              onChange={(e) => setAllDayDeadlines(e.target.checked)}
+            />
+            <span>
+              Show deadlines as all-day events
+              <span className="block text-muted-foreground">
+                They sit at the top of the day. Exams and quizzes keep their times.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-primary"
+              checked={includeClasses}
+              disabled={coursesWithClasses.length === 0}
+              onChange={(e) => setIncludeClasses(e.target.checked)}
+            />
+            <span>
+              Include class meeting times
+              {coursesWithClasses.length === 0 && (
+                <span className="block text-muted-foreground">
+                  No weekly class times were found.
+                </span>
+              )}
+            </span>
+          </label>
+          {includeClasses &&
+            coursesWithClasses.map((f) => (
+              <div key={f.id} className="ml-6 flex flex-col gap-1">
+                <p className="font-medium">{courseLabel(f)}</p>
+                {f.schedule?.meetings.map((meeting, i) => (
+                  <p key={i} className="text-muted-foreground">
+                    {formatMeeting(meeting)}
+                  </p>
+                ))}
+                <label className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                  Repeats until
+                  <Input
+                    type="date"
+                    className="w-fit"
+                    min={state.termStart}
+                    value={classEnd(f)}
+                    onChange={(e) => setClassEnds((prev) => ({ ...prev, [f.id]: e.target.value }))}
+                  />
+                </label>
+                {!classEnd(f) && (
+                  <p className="text-amber-900 dark:text-amber-200">
+                    Add an end date to include this course.
+                  </p>
+                )}
+              </div>
+            ))}
+        </fieldset>
 
         <div className="grid grid-cols-2 gap-2">
           {TARGETS.map((target) => (

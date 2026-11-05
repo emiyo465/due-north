@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest"
 import {
   collectExportEvents,
   courseLabel,
+  defaultClassEnd,
+  formatMeeting,
   toCsv,
   toIcs,
   toPlainText,
   type ExportEvent,
 } from "./export"
-import type { PlannerEvent, SyllabusFile } from "./types"
+import type { ClassSchedule, PlannerEvent, SyllabusFile } from "./types"
 
 // Vitest pins TZ to America/Chicago (see vitest.config.mts).
 
@@ -34,6 +36,7 @@ function file(events: PlannerEvent[], patch: Partial<SyllabusFile> = {}): Syllab
     progress: 100,
     useFixture: false,
     course: null,
+    schedule: null,
     events,
     ...patch,
   }
@@ -124,6 +127,91 @@ describe("toIcs", () => {
     expect(icsField(ics, "SUMMARY")).toBe("CS 340: Quiz 1")
     expect(icsField(ics, "UID")).toBe("abc")
     expect(icsField(ics, "DESCRIPTION")).toContain("Thu\\, Sep 17 Quiz 1")
+  })
+})
+
+describe("toIcs with all-day deadlines", () => {
+  const options = { allDayDeadlines: true }
+
+  it("moves deadlines to the all-day row and keeps the due time in the notes", () => {
+    const ics = toIcs([dated({ due_date: "2026-09-25", time: "23:59" })], options)
+    expect(icsField(ics, "DTSTART")).toBe("VALUE=DATE:20260925")
+    expect(icsField(ics, "DTEND")).toBe("VALUE=DATE:20260926")
+    expect(icsField(ics, "DESCRIPTION")).toContain("Due 11:59 PM")
+  })
+
+  it("keeps exams and quizzes at their times", () => {
+    const exam = dated({ type: "exam", due_date: "2026-09-17", time: "13:30" })
+    expect(icsField(toIcs([exam], options), "DTSTART")).toBe("20260917T183000Z")
+  })
+})
+
+describe("toIcs with class meetings", () => {
+  const schedule: ClassSchedule = {
+    meetings: [
+      {
+        label: null,
+        days: ["TU", "TH"],
+        start: "13:30",
+        end: "14:45",
+        location: "MSB 1.04",
+      },
+    ],
+    last_day: "2026-12-03",
+    no_class_dates: ["2026-11-26", "2026-11-25"],
+  }
+  const classes = [
+    { course: "CS 340", schedule, firstDay: "2026-09-07", lastDay: "2026-12-03" },
+  ]
+
+  it("repeats weekly from the first matching day until the last day", () => {
+    const ics = toIcs([], { classes })
+    expect(icsField(ics, "SUMMARY")).toBe("CS 340: Class")
+    expect(icsField(ics, "LOCATION")).toBe("MSB 1.04")
+    expect(icsField(ics, "DTSTART")).toBe("20260908T133000")
+    expect(icsField(ics, "DTEND")).toBe("20260908T144500")
+    expect(icsField(ics, "RRULE")).toBe("FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20261203T235959")
+  })
+
+  it("uses wall-clock times so daylight saving doesn't shift classes", () => {
+    expect(icsField(toIcs([], { classes }), "DTSTART")).not.toContain("Z")
+  })
+
+  it("skips no-class dates that fall on a class day, at the class's time", () => {
+    expect(icsField(toIcs([], { classes }), "EXDATE")).toBe("20261126T133000")
+  })
+
+  it("makes one repeating event per meeting, labeled", () => {
+    const lab = { label: "Lab", days: ["TH" as const], start: "14:00", end: "16:50", location: null }
+    const both = { ...schedule, meetings: [{ ...schedule.meetings[0], label: "Lecture" }, lab] }
+    const ics = toIcs([], { classes: [{ ...classes[0], schedule: both }] })
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(2)
+    expect(ics).toContain("SUMMARY:CS 340: Lab")
+  })
+
+  it("leaves out a meeting that never falls in the range", () => {
+    const short = [{ ...classes[0], firstDay: "2026-09-09", lastDay: "2026-09-09" }]
+    expect(() => toIcs([], { classes: short })).not.toThrow()
+  })
+})
+
+describe("defaultClassEnd", () => {
+  it("prefers the syllabus's last day", () => {
+    const schedule = { meetings: [], last_day: "2026-12-03", no_class_dates: [] }
+    expect(defaultClassEnd({ schedule, events: [event({ due_date: "2026-12-08" })] })).toBe("2026-12-03")
+  })
+
+  it("falls back to the last dated event, then nothing", () => {
+    const events = [event({ due_date: "2026-12-08" }), event({ due_date: "2026-09-01" })]
+    expect(defaultClassEnd({ schedule: null, events })).toBe("2026-12-08")
+    expect(defaultClassEnd({ schedule: null, events: [] })).toBeNull()
+  })
+})
+
+describe("formatMeeting", () => {
+  it("names the days and times, with any label", () => {
+    const meeting = { label: "Lab", days: ["TU" as const], start: "13:30", end: "14:45", location: null }
+    expect(formatMeeting(meeting)).toBe("Lab: Tue 1:30 PM–2:45 PM")
   })
 })
 

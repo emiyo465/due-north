@@ -16,6 +16,7 @@ const EMPTY_RESULT: ExtractionResult = {
     office_location: null,
     office_hours: null,
   },
+  schedule: { meetings: [], last_day: null, no_class_dates: [] },
   events: [],
 }
 

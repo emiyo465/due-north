@@ -114,6 +114,7 @@ for (const syl of key.syllabi.filter((s) => !only || s.file.startsWith(only))) {
     const nd = syl.non_deadlines.find((n) => n.date === e.due_date)
     console.log(`  EXTRA ${e.due_date ?? "no date"}  ${e.title}${nd ? "  (answer key: non-deadline, " + nd.reason + ")" : ""}`)
   }
+  console.log(`  schedule ${JSON.stringify(r.schedule)}`)
   const quotesFound = r.events.filter((e) => findQuote(items[e.page - 1] ?? [], e.source_quote)).length
   console.log(`  recall ${hit}/${syl.events.length} · precision ${hit}/${r.events.length} · time ${timeOk}/${hit} · type ${typeOk}/${hit} · quotes found ${quotesFound}/${r.events.length}`)
 }

@@ -47,7 +47,7 @@ export async function extractFile(
       if (fixture) return fixture
     }
     if (!res.ok) throw new Error(body?.message ?? `Extraction failed (${res.status}).`)
-    return { course: body.course, events: body.events }
+    return { course: body.course, schedule: body.schedule, events: body.events }
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
       throw new Error("Extraction took too long. Try again.")

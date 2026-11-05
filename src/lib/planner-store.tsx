@@ -3,6 +3,7 @@
 import { createContext, use, useCallback, useEffect, useReducer, useRef } from "react"
 import { extractFile } from "@/lib/extract-client"
 import type {
+  ClassSchedule,
   CourseFieldKey,
   CourseInfo,
   ExtractedEvent,
@@ -24,7 +25,13 @@ interface PlannerState {
 type Action =
   | { type: "add"; files: SyllabusFile[] }
   | { type: "progress"; id: string; progress: number }
-  | { type: "done"; id: string; course: PlannerCourse; events: PlannerEvent[] }
+  | {
+      type: "done"
+      id: string
+      course: PlannerCourse
+      schedule: ClassSchedule
+      events: PlannerEvent[]
+    }
   | { type: "error"; id: string; message: string }
   | { type: "remove"; id: string }
   | { type: "retry"; id: string }
@@ -61,6 +68,7 @@ function reducer(state: PlannerState, action: Action): PlannerState {
         status: "done",
         progress: 100,
         course: action.course,
+        schedule: action.schedule,
         events: action.events,
       })
     case "error":
@@ -73,6 +81,7 @@ function reducer(state: PlannerState, action: Action): PlannerState {
         progress: 0,
         error: undefined,
         course: null,
+        schedule: null,
         events: [],
       })
     case "setTermStart":
@@ -158,12 +167,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       (progress) => dispatch({ type: "progress", id, progress }),
       controller.signal
     )
-      .then(({ course, events }) => {
+      .then(({ course, schedule, events }) => {
         if (controller.signal.aborted) return
         dispatch({
           type: "done",
           id,
           course: toPlannerCourse(course),
+          schedule,
           events: toPlannerEvents(events),
         })
       })
@@ -186,6 +196,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         progress: 0,
         useFixture,
         course: null,
+        schedule: null,
         events: [],
       }))
       dispatch({ type: "add", files: added })

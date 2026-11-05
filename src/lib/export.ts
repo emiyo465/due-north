@@ -1,12 +1,35 @@
-import { addDays, addMinutes, parse, parseISO } from "date-fns"
+import { addDays, addMinutes, format, parse, parseISO } from "date-fns"
 import { createEvents, type DateArray, type EventAttributes } from "ics"
 import { compareEvents, formatDateWithYear, formatTime } from "@/lib/format"
-import { EVENT_TYPE_LABELS, type EventType, type PlannerEvent, type SyllabusFile } from "@/lib/types"
+import {
+  EVENT_TYPE_LABELS,
+  type ClassMeeting,
+  type ClassSchedule,
+  type EventType,
+  type PlannerEvent,
+  type SyllabusFile,
+  type Weekday,
+} from "@/lib/types"
 
 /** A dated event ready to export, with the course it belongs to. */
 export interface ExportEvent {
   course: string
   event: PlannerEvent & { due_date: string }
+}
+
+/** A course's weekly classes, with the date range to repeat them over. */
+export interface ClassExport {
+  course: string
+  schedule: ClassSchedule
+  /** ISO dates, both inclusive. */
+  firstDay: string
+  lastDay: string
+}
+
+export interface IcsOptions {
+  /** Show deadlines in the calendar's all-day row. Exams and quizzes stay timed. */
+  allDayDeadlines?: boolean
+  classes?: ClassExport[]
 }
 
 /** "CS 340: Software Design" → "CS 340"; falls back to the file name. */
@@ -52,8 +75,8 @@ function toDayArray(date: Date): DateArray {
   return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
 }
 
-function eventSpan({ due_date, time, type }: ExportEvent["event"]) {
-  if (!time) {
+function eventSpan({ due_date, time, type }: ExportEvent["event"], allDay: boolean) {
+  if (!time || allDay) {
     const day = parseISO(due_date)
     // The end of an all-day event is exclusive, so it's the next day.
     return { start: toDayArray(day), end: toDayArray(addDays(day, 1)) }
@@ -64,23 +87,94 @@ function eventSpan({ due_date, time, type }: ExportEvent["event"]) {
     : { start: toDateArray(addMinutes(at, -DEADLINE_MINUTES)), end: toDateArray(at) }
 }
 
-/** An .ics calendar. Times are read in the browser's time zone and written as UTC. */
-export function toIcs(events: ExportEvent[]) {
-  const attributes = events.map(({ course, event }): EventAttributes => ({
-    ...eventSpan(event),
-    uid: event.id,
-    title: `${course}: ${event.title}`,
-    description: [
-      EVENT_TYPE_LABELS[event.type],
-      event.source_quote && `From the syllabus: "${event.source_quote}"`,
-    ]
-      .filter(Boolean)
-      .join("\n"),
+const WEEKDAYS: Weekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"]
+
+function weekdayOf(date: Date) {
+  return WEEKDAYS[date.getDay()]
+}
+
+function atTime(date: Date, time: string) {
+  const [hours, minutes] = time.split(":").map(Number)
+  return [date.getFullYear(), date.getMonth() + 1, date.getDate(), hours, minutes] as DateArray
+}
+
+function meetingEvent(meeting: ClassMeeting, { course, schedule, firstDay, lastDay }: ClassExport) {
+  let first = parseISO(firstDay)
+  const last = parseISO(lastDay)
+  while (first <= last && !meeting.days.includes(weekdayOf(first))) first = addDays(first, 1)
+  if (first > last) return null
+
+  const skipped = schedule.no_class_dates
+    .map((date) => parseISO(date))
+    .filter((date) => date >= first && date <= last && meeting.days.includes(weekdayOf(date)))
+    .map((date) => `${format(date, "yyyyMMdd")}T${meeting.start.replace(":", "")}00`)
+
+  // Written as wall-clock time with no zone: a recurrence stored in UTC would
+  // shift an hour when daylight saving changes partway through the term.
+  const event: EventAttributes = {
+    start: atTime(first, meeting.start),
+    end: atTime(first, meeting.end),
+    startOutputType: "local",
+    endOutputType: "local",
+    title: `${course}: ${meeting.label ?? "Class"}`,
+    recurrenceRule: `FREQ=WEEKLY;BYDAY=${meeting.days.join(",")};UNTIL=${format(last, "yyyyMMdd")}T235959`,
     productId: "automated-semester-planner",
-  }))
+  }
+  if (meeting.location) event.location = meeting.location
+  if (skipped.length > 0) event.exclusionDates = skipped
+  return event
+}
+
+/** An .ics calendar. Deadlines are read in the browser's time zone and written as UTC. */
+export function toIcs(events: ExportEvent[], { allDayDeadlines = false, classes = [] }: IcsOptions = {}) {
+  const attributes = events.map(({ course, event }): EventAttributes => {
+    const allDay = allDayDeadlines && !STARTS_AT_TIME.includes(event.type)
+    return {
+      ...eventSpan(event, allDay),
+      uid: event.id,
+      title: `${course}: ${event.title}`,
+      description: [
+        EVENT_TYPE_LABELS[event.type],
+        allDay && event.time && `Due ${formatTime(event.time)}`,
+        event.source_quote && `From the syllabus: "${event.source_quote}"`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      productId: "automated-semester-planner",
+    }
+  })
+  for (const entry of classes) {
+    for (const meeting of entry.schedule.meetings) {
+      const event = meetingEvent(meeting, entry)
+      if (event) attributes.push(event)
+    }
+  }
   const { error, value } = createEvents(attributes)
   if (error || !value) throw error ?? new Error("Couldn't create the calendar file")
   return value
+}
+
+/** The day to stop repeating a course's classes, if the syllabus suggests one. */
+export function defaultClassEnd(file: Pick<SyllabusFile, "schedule" | "events">) {
+  if (file.schedule?.last_day) return file.schedule.last_day
+  const dates = file.events.flatMap((e) => (e.due_date ? [e.due_date] : [])).sort()
+  return dates.at(-1) ?? null
+}
+
+const DAY_LABELS: Record<Weekday, string> = {
+  MO: "Mon",
+  TU: "Tue",
+  WE: "Wed",
+  TH: "Thu",
+  FR: "Fri",
+  SA: "Sat",
+  SU: "Sun",
+}
+
+/** "Lab: Tue, Thu 1:30 PM–2:45 PM" */
+export function formatMeeting({ label, days, start, end }: ClassMeeting) {
+  const when = `${days.map((d) => DAY_LABELS[d]).join(", ")} ${formatTime(start)}–${formatTime(end)}`
+  return label ? `${label}: ${when}` : when
 }
 
 /** Quotes a cell, and stops Excel running text from a PDF as a formula. */

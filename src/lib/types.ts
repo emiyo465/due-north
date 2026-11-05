@@ -43,8 +43,31 @@ export function courseFieldId(key: CourseFieldKey) {
   return `course:${key}`
 }
 
+export type Weekday = "MO" | "TU" | "WE" | "TH" | "FR" | "SA" | "SU"
+
+/** One regular weekly class time, such as a lecture or a lab. */
+export interface ClassMeeting {
+  /** "Lecture", "Lab", etc., or null when the course has one kind of meeting. */
+  label: string | null
+  days: Weekday[]
+  /** 24-hour local time (HH:mm). */
+  start: string
+  end: string
+  location: string | null
+}
+
+/** When a course meets each week, for exporting classes as recurring events. */
+export interface ClassSchedule {
+  meetings: ClassMeeting[]
+  /** ISO date of the last regular class, or null when the syllabus doesn't say. */
+  last_day: string | null
+  /** ISO dates class doesn't meet, such as each day of a break. */
+  no_class_dates: string[]
+}
+
 export interface ExtractionResult {
   course: CourseInfo
+  schedule: ClassSchedule
   events: ExtractedEvent[]
 }
 
@@ -99,6 +122,7 @@ export interface SyllabusFile {
   useFixture: boolean
   /** Set once extraction finishes. */
   course: PlannerCourse | null
+  schedule: ClassSchedule | null
   events: PlannerEvent[]
   error?: string
 }

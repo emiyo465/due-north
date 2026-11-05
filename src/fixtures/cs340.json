@@ -27,6 +27,24 @@
       "page": 1
     }
   },
+  "schedule": {
+    "meetings": [
+      {
+        "label": null,
+        "days": [
+          "TU",
+          "TH"
+        ],
+        "start": "13:30",
+        "end": "14:45",
+        "location": "Millennium Science Building 1.04"
+      }
+    ],
+    "last_day": "2026-12-03",
+    "no_class_dates": [
+      "2026-11-26"
+    ]
+  },
   "events": [
     {
       "title": "Quiz 1: Requirements & UML",
