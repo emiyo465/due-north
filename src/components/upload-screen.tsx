@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useDropzone, type FileRejection } from "react-dropzone"
 import { CircleAlert, CircleCheck, FileText, LoaderCircle, RotateCw, Upload, X } from "lucide-react"
@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils"
 
 // Generous for a syllabus; only the page text is sent on, not the file.
 const MAX_FILE_SIZE = 32 * 1024 * 1024
+// Long enough to read the "opening" note before the screen changes.
+const ADVANCE_DELAY = 1500
 const EXAMPLE_SYLLABUS = "/samples/CS340_Software_Design_Syllabus_USABILITY_TEST.pdf"
 
 function formatBytes(bytes: number) {
@@ -34,6 +36,11 @@ export function UploadScreen() {
   const { files, termStart } = state
   const [rejections, setRejections] = useState<string[]>([])
   const [loadingExample, setLoadingExample] = useState(false)
+  // Advance only for a batch running on this visit, so coming back to this
+  // screen later doesn't bounce straight to analysis.
+  const [autoAdvance, setAutoAdvance] = useState(() =>
+    files.some((f) => f.status === "processing")
+  )
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     accept: { "application/pdf": [".pdf"] },
@@ -42,7 +49,10 @@ export function UploadScreen() {
     noClick: true,
     onDrop: (accepted, rejected) => {
       setRejections(rejected.map(rejectionMessage))
-      if (accepted.length) addFiles(accepted)
+      if (accepted.length) {
+        setAutoAdvance(true)
+        addFiles(accepted)
+      }
     },
   })
 
@@ -52,6 +62,7 @@ export function UploadScreen() {
       const res = await fetch(EXAMPLE_SYLLABUS)
       const blob = await res.blob()
       const name = EXAMPLE_SYLLABUS.split("/").pop()!
+      setAutoAdvance(true)
       // The example has a hand-checked fixture, so it never spends API credits.
       addFiles([new File([blob], name, { type: "application/pdf" })], { useFixture: true })
     } finally {
@@ -65,19 +76,19 @@ export function UploadScreen() {
     ? files.reduce((sum, f) => sum + (f.status === "processing" ? f.progress : 100), 0) / files.length
     : 0
 
-  // Advance only when a batch the user started on this visit finishes, so
-  // coming back to this screen later doesn't bounce straight to analysis.
-  const sawProcessing = useRef(false)
+  const hasResults = files.some((f) => f.status === "done")
+  const advancing = autoAdvance && processing === 0 && hasResults
+
   useEffect(() => {
-    if (processing > 0) {
-      sawProcessing.current = true
-      return
-    }
-    if (!sawProcessing.current || !files.some((f) => f.status === "done")) return
-    sawProcessing.current = false
-    const timeout = setTimeout(() => router.push("/analysis"), 700)
+    if (!advancing) return
+    const timeout = setTimeout(() => {
+      // This screen stays mounted while hidden, so reset now or coming back
+      // would advance again.
+      setAutoAdvance(false)
+      router.push("/analysis")
+    }, ADVANCE_DELAY)
     return () => clearTimeout(timeout)
-  }, [processing, files, router])
+  }, [advancing, router])
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-12 sm:py-20">
@@ -155,12 +166,23 @@ export function UploadScreen() {
                 key={f.id}
                 file={f}
                 onRemove={() => removeFile(f.id)}
-                onRetry={() => retryFile(f.id)}
+                onRetry={() => {
+                  setAutoAdvance(true)
+                  retryFile(f.id)
+                }}
               />
             ))}
           </ul>
 
-          {processing === 0 && files.some((f) => f.status === "done") && (
+          {(processing > 0 || advancing) && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {advancing
+                ? "All done. Opening your dates…"
+                : "Your dates will open automatically when this finishes."}
+            </p>
+          )}
+
+          {processing === 0 && hasResults && !advancing && (
             <Button className="self-end" onClick={() => router.push("/analysis")}>
               Review dates
             </Button>
