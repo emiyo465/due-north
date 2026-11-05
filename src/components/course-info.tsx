@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { CircleCheck, FileSearch, Pencil, Plus, TriangleAlert } from "lucide-react"
+import { rowHoverProps } from "@/components/row-hover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +20,9 @@ import { cn } from "@/lib/utils"
 interface CourseInfoSectionProps {
   file: SyllabusFile
   selectedId: string | null
+  hoveredId: string | null
   onSelect: (id: string) => void
+  onHover: (id: string | null) => void
   /** Ids (see courseFieldId) whose source quote couldn't be found in the PDF. */
   missingSources: Set<string>
 }
@@ -28,7 +31,9 @@ interface CourseInfoSectionProps {
 export function CourseInfoSection({
   file,
   selectedId,
+  hoveredId,
   onSelect,
+  onHover,
   missingSources,
 }: CourseInfoSectionProps) {
   const { setCourseField } = usePlanner()
@@ -59,9 +64,12 @@ export function CourseInfoSection({
             inputId={`course-${file.id}-${key}`}
             field={course[key]}
             editing={editingKey === key}
+            sourceId={courseFieldId(key)}
             selected={selectedId === courseFieldId(key)}
+            hovered={hoveredId === courseFieldId(key)}
             sourceMissing={missingSources.has(courseFieldId(key))}
             onSelect={() => onSelect(courseFieldId(key))}
+            onHover={(hovering) => onHover(hovering ? courseFieldId(key) : null)}
             onEdit={() => setEditingKey(key)}
             onCancel={() => setEditingKey(null)}
             onSave={(value) => {
@@ -93,10 +101,13 @@ interface CourseRowProps {
   label: string
   inputId: string
   field: PlannerCourseField | null
+  sourceId: string
   editing: boolean
   selected: boolean
+  hovered: boolean
   sourceMissing: boolean
   onSelect: () => void
+  onHover: (hovering: boolean) => void
   onEdit: () => void
   onCancel: () => void
   onSave: (value: string) => void
@@ -107,9 +118,12 @@ function CourseRow({
   label,
   inputId,
   field,
+  sourceId,
   editing,
   selected,
+  hovered,
   sourceMissing,
+  onHover,
   ...handlers
 }: CourseRowProps) {
   const canSelect = !editing && field?.page != null
@@ -117,10 +131,13 @@ function CourseRow({
 
   return (
     <li
+      data-source-row={sourceId}
       className={cn(
         "px-4 py-3 transition-colors",
+        hovered && !editing && "bg-muted/40",
         selected && !editing && "bg-muted/60 shadow-[inset_3px_0_0_var(--color-primary)]"
       )}
+      {...rowHoverProps(onHover)}
       // Clicking anywhere on the row (except its controls) shows its source.
       onClick={(e) => {
         if (!canSelect || (e.target as HTMLElement).closest("button, input, a")) return

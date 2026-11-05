@@ -1,10 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import type { PDFDocumentProxy } from "pdfjs-dist"
-import { LoaderCircle } from "lucide-react"
+import { LoaderCircle, ZoomIn, ZoomOut } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { findQuote, type QuoteSpan } from "@/lib/quote-match"
+import { cn } from "@/lib/utils"
 import "react-pdf/dist/Page/TextLayer.css"
 
 // Must be set in the same module that renders <Document> (see react-pdf docs).
@@ -12,6 +14,11 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url
 ).toString()
+
+// 1 is fit-to-width.
+const MIN_ZOOM = 0.5
+const MAX_ZOOM = 3
+const ZOOM_STEP = 0.25
 
 type Matrix = number[]
 
@@ -63,6 +70,14 @@ interface PdfViewerProps {
   file: File
   sources: HighlightSource[]
   selectedId: string | null
+  /** Whether a new selection scrolls the PDF to it. */
+  followSelection: boolean
+  /** The source being hovered or keyboard-focused, here or in the list. */
+  focusedId: string | null
+  /** A highlight was clicked. */
+  onSelect: (id: string) => void
+  /** The pointer entered (id) or left (null) a highlight. */
+  onFocusChange: (id: string | null) => void
   /** Reports which sources' quotes couldn't be found in the PDF. */
   onMissingSourcesChange: (ids: Set<string>) => void
 }
@@ -115,12 +130,21 @@ export default function PdfViewer({
   file,
   sources,
   selectedId,
+  followSelection,
+  focusedId,
+  onSelect,
+  onFocusChange,
   onMissingSourcesChange,
 }: PdfViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [pages, setPages] = useState<PageInfo[] | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef(1)
+  // Where to scroll once a new zoom has laid out, to keep a point in place.
+  const pendingScroll = useRef<{ left: number; top: number } | null>(null)
+  const [nearbyPages, setNearbyPages] = useState<ReadonlySet<number>>(new Set())
 
   useEffect(() => {
     const container = containerRef.current
@@ -204,6 +228,8 @@ export default function PdfViewer({
   const selectedMatch = selectedId ? matches.get(selectedId) : undefined
   const selectedSource = sources.find((s) => s.id === selectedId)
   const targetPage = selectedMatch?.page ?? selectedSource?.page ?? null
+  // Pages are laid out at full size from the start, rendered or not.
+  const ready = pages !== null && width > 0
 
   const scrollToTarget = useCallback(() => {
     const container = containerRef.current
@@ -212,72 +238,208 @@ export default function PdfViewer({
       container.querySelector<HTMLElement>(".pdf-hl-active") ??
       container.querySelector<HTMLElement>(`[data-page="${targetPage}"]`)
     if (!target) return
-    const offset = target.getBoundingClientRect().top - container.getBoundingClientRect().top
-    container.scrollTo({ top: container.scrollTop + offset - container.clientHeight / 3, behavior: "smooth" })
+    const from = container.getBoundingClientRect()
+    const to = target.getBoundingClientRect()
+    container.scrollTo({
+      top: container.scrollTop + to.top - from.top - container.clientHeight / 3,
+      left: container.scrollLeft + to.left - from.left - container.clientWidth / 3,
+      behavior: "smooth",
+    })
     // On narrow screens the viewer sits below the list, so bring it into view too.
     container.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }, [targetPage])
 
-  // Scroll on selection once the target page has rendered (until then its
-  // height is a placeholder); a page that renders later finishes the scroll.
-  const [renderedPages, setRenderedPages] = useState<ReadonlySet<number>>(new Set())
-  const targetRendered = targetPage !== null && renderedPages.has(targetPage)
   useEffect(() => {
-    if (targetRendered) scrollToTarget()
-  }, [selectedId, targetRendered, scrollToTarget])
+    if (ready && followSelection) scrollToTarget()
+  }, [selectedId, ready, followSelection, scrollToTarget])
 
-  const handlePageRendered = useCallback((page: number) => {
-    setRenderedPages((prev) => (prev.has(page) ? prev : new Set(prev).add(page)))
+  // Only pages near the view get a canvas, which matters at high zoom.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !ready) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setNearbyPages((prev) => {
+          const next = new Set(prev)
+          for (const entry of entries) {
+            const page = Number((entry.target as HTMLElement).dataset.page)
+            if (entry.isIntersecting) next.add(page)
+            else next.delete(page)
+          }
+          return next
+        })
+      },
+      { root: container, rootMargin: "100% 0px" }
+    )
+    container.querySelectorAll("[data-page]").forEach((page) => observer.observe(page))
+    return () => observer.disconnect()
+  }, [ready])
+
+  /** Zooms to a level, keeping the given screen point where it is. */
+  const zoomTo = useCallback((level: number, clientX?: number, clientY?: number) => {
+    const container = containerRef.current
+    const next = Math.round(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, level)) * 100) / 100
+    if (!container || next === zoomRef.current) return
+    const rect = container.getBoundingClientRect()
+    const x = (clientX ?? rect.left + rect.width / 2) - rect.left
+    const y = (clientY ?? rect.top + rect.height / 2) - rect.top
+    const ratio = next / zoomRef.current
+    pendingScroll.current = {
+      left: (container.scrollLeft + x) * ratio - x,
+      top: (container.scrollTop + y) * ratio - y,
+    }
+    zoomRef.current = next
+    setZoom(next)
   }, [])
 
+  useLayoutEffect(() => {
+    if (pendingScroll.current) containerRef.current?.scrollTo(pendingScroll.current)
+    pendingScroll.current = null
+  }, [zoom])
+
+  // Ctrl+wheel and trackpad pinch both arrive as wheel events with ctrlKey set.
+  // Touch pinch needs its own handling. Both must be non-passive to stop the
+  // browser zooming the whole app.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let pinchDistance = 0
+
+    const distance = (touches: TouchList) =>
+      Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
+
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      zoomTo(zoomRef.current * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY)
+    }
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinchDistance = distance(e.touches)
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2 || !pinchDistance) return
+      e.preventDefault()
+      const current = distance(e.touches)
+      zoomTo(
+        (zoomRef.current * current) / pinchDistance,
+        (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        (e.touches[0].clientY + e.touches[1].clientY) / 2
+      )
+      pinchDistance = current
+    }
+
+    container.addEventListener("wheel", onWheel, { passive: false })
+    container.addEventListener("touchstart", onTouchStart, { passive: true })
+    container.addEventListener("touchmove", onTouchMove, { passive: false })
+    return () => {
+      container.removeEventListener("wheel", onWheel)
+      container.removeEventListener("touchstart", onTouchStart)
+      container.removeEventListener("touchmove", onTouchMove)
+    }
+  }, [zoomTo])
+
+  const pageWidth = (width - 24) * zoom
+  // Dim the rest only when the focused source actually has a highlight.
+  const focusShown = focusedId !== null && Boolean(matches.get(focusedId))
+
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto p-3">
-      <Document
-        file={file}
-        onLoadSuccess={setPdf}
-        loading={<ViewerMessage spinner>Loading PDF…</ViewerMessage>}
-        error={<ViewerMessage>Couldn&apos;t display this PDF.</ViewerMessage>}
-        className="flex flex-col gap-3"
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center gap-1 border-b bg-background px-2 py-1">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => zoomTo(zoomRef.current - ZOOM_STEP)}
+          disabled={zoom <= MIN_ZOOM}
+          aria-label="Zoom out"
+        >
+          <ZoomOut />
+        </Button>
+        <span className="w-11 text-center text-xs text-muted-foreground tabular-nums">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => zoomTo(zoomRef.current + ZOOM_STEP)}
+          disabled={zoom >= MAX_ZOOM}
+          aria-label="Zoom in"
+        >
+          <ZoomIn />
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => zoomTo(1)} disabled={zoom === 1}>
+          Fit width
+        </Button>
+      </div>
+
+      <div
+        ref={containerRef}
+        className={cn(
+          "min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto p-3",
+          focusShown && "pdf-dim"
+        )}
       >
-        {pdf &&
-          width > 0 &&
-          Array.from({ length: pdf.numPages }, (_, i) => i + 1).map((page) => (
-            <div
-              key={page}
-              data-page={page}
-              // Exactly the page's size, since highlights are placed in percentages of it.
-              className="relative mx-auto w-fit overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-foreground/10"
-            >
-              <Page
-                pageNumber={page}
-                width={width - 24}
-                renderAnnotationLayer={false}
-                onRenderSuccess={() => handlePageRendered(page)}
-                loading={<div style={{ width: width - 24, height: (width - 24) * 1.3 }} />}
-              />
-              <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
-                {(boxes.get(page) ?? [])
-                  // The selected source goes last so it draws on top.
-                  .toSorted((a, b) => Number(a.id === selectedId) - Number(b.id === selectedId))
-                  .flatMap(({ id, boxes }) =>
-                    boxes.map((box, i) => (
-                      <div
-                        key={`${id}-${i}`}
-                        data-source={id}
-                        className={id === selectedId ? "pdf-hl pdf-hl-active" : "pdf-hl"}
-                        style={{
-                          left: `${box.left}%`,
-                          top: `${box.top}%`,
-                          width: `${box.width}%`,
-                          height: `${box.height}%`,
-                        }}
-                      />
-                    ))
+        <Document
+          file={file}
+          onLoadSuccess={setPdf}
+          loading={<ViewerMessage spinner>Loading PDF…</ViewerMessage>}
+          error={<ViewerMessage>Couldn&apos;t display this PDF.</ViewerMessage>}
+          className="flex flex-col gap-3"
+        >
+          {ready &&
+            pages.map((info, i) => {
+              const page = i + 1
+              return (
+                <div
+                  key={page}
+                  data-page={page}
+                  // Exactly the page's size, since highlights are placed in percentages of it.
+                  className="relative mx-auto shrink-0 overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-foreground/10"
+                  style={{ width: pageWidth, height: (pageWidth * info.height) / info.width }}
+                >
+                  {nearbyPages.has(page) && (
+                    <Page
+                      pageNumber={page}
+                      width={pageWidth}
+                      renderAnnotationLayer={false}
+                      loading={<div />}
+                    />
                   )}
-              </div>
-            </div>
-          ))}
-      </Document>
+                  <div className="pointer-events-none absolute inset-0 z-10" aria-hidden>
+                    {(boxes.get(page) ?? [])
+                      // The selected and focused sources go last so they draw on top.
+                      .toSorted(
+                        (a, b) =>
+                          Number(a.id === selectedId) - Number(b.id === selectedId) ||
+                          Number(a.id === focusedId) - Number(b.id === focusedId)
+                      )
+                      .flatMap(({ id, boxes }) =>
+                        boxes.map((box, i) => (
+                          <div
+                            key={`${id}-${i}`}
+                            data-source={id}
+                            className={cn(
+                              "pdf-hl",
+                              id === selectedId && "pdf-hl-active",
+                              id === focusedId && "pdf-hl-focus"
+                            )}
+                            style={{
+                              left: `${box.left}%`,
+                              top: `${box.top}%`,
+                              width: `${box.width}%`,
+                              height: `${box.height}%`,
+                            }}
+                            onClick={() => onSelect(id)}
+                            onMouseEnter={() => onFocusChange(id)}
+                            onMouseLeave={() => onFocusChange(null)}
+                          />
+                        ))
+                      )}
+                  </div>
+                </div>
+              )
+            })}
+        </Document>
+      </div>
     </div>
   )
 }

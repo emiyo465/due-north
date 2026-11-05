@@ -11,12 +11,21 @@ import { needsReview, type SyllabusFile } from "@/lib/types"
 interface EventListProps {
   file: SyllabusFile
   selectedId: string | null
+  hoveredId: string | null
   onSelect: (id: string) => void
+  onHover: (id: string | null) => void
   /** Events whose source quote couldn't be found in the PDF. */
   missingSources: Set<string>
 }
 
-export function EventList({ file, selectedId, onSelect, missingSources }: EventListProps) {
+export function EventList({
+  file,
+  selectedId,
+  hoveredId,
+  onSelect,
+  onHover,
+  missingSources,
+}: EventListProps) {
   const { addEvent, updateEvent, removeEvent } = usePlanner()
   const [editingId, setEditingId] = useState<string | null>(null)
   // A just-added event is discarded if the user cancels before saving it.
@@ -67,8 +76,10 @@ export function EventList({ file, selectedId, onSelect, missingSources }: EventL
               event={event}
               editing={event.id === editingId}
               selected={event.id === selectedId}
+              hovered={event.id === hoveredId}
               sourceMissing={missingSources.has(event.id)}
               onSelect={() => onSelect(event.id)}
+              onHover={(hovering) => onHover(hovering ? event.id : null)}
               onEdit={() => {
                 if (unsavedId && unsavedId !== event.id) removeEvent(file.id, unsavedId)
                 setEditingId(event.id)

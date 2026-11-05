@@ -2,26 +2,30 @@
 
 import { useState } from "react"
 import { CircleCheck, FileSearch, Pencil, Trash2, TriangleAlert } from "lucide-react"
+import { rowHoverProps } from "@/components/row-hover"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatDate, formatTime } from "@/lib/format"
-import { EVENT_TYPES, needsReview, type EventType, type PlannerEvent } from "@/lib/types"
+import {
+  EVENT_TYPE_LABELS,
+  EVENT_TYPES,
+  needsReview,
+  type EventType,
+  type PlannerEvent,
+} from "@/lib/types"
 import { cn } from "@/lib/utils"
-
-const TYPE_LABELS = Object.fromEntries(EVENT_TYPES.map((t) => [t.value, t.label])) as Record<
-  EventType,
-  string
->
 
 interface EventRowProps {
   event: PlannerEvent
   editing: boolean
   selected: boolean
+  hovered: boolean
   sourceMissing: boolean
   onSelect: () => void
+  onHover: (hovering: boolean) => void
   onEdit: () => void
   onSave: (patch: Partial<PlannerEvent>) => void
   onCancel: () => void
@@ -29,13 +33,16 @@ interface EventRowProps {
   onToggleVerified: () => void
 }
 
-export function EventRow({ event, editing, selected, ...rest }: EventRowProps) {
+export function EventRow({ event, editing, selected, hovered, onHover, ...rest }: EventRowProps) {
   return (
     <li
+      data-source-row={event.id}
       className={cn(
         "px-4 py-3 transition-colors",
+        hovered && !editing && "bg-muted/40",
         selected && !editing && "bg-muted/60 shadow-[inset_3px_0_0_var(--color-primary)]"
       )}
+      {...rowHoverProps(onHover)}
       // Clicking anywhere on the row (except its controls) shows its source.
       onClick={(e) => {
         if (editing || event.page === null) return
@@ -59,7 +66,7 @@ function EventView({
   onEdit,
   onDelete,
   onToggleVerified,
-}: Omit<EventRowProps, "editing" | "selected" | "onSave" | "onCancel">) {
+}: Omit<EventRowProps, "editing" | "selected" | "hovered" | "onHover" | "onSave" | "onCancel">) {
   const review = needsReview(event, sourceMissing)
   const label = event.title || "Untitled event"
 
@@ -79,7 +86,7 @@ function EventView({
           {label}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline">{TYPE_LABELS[event.type]}</Badge>
+          <Badge variant="outline">{EVENT_TYPE_LABELS[event.type]}</Badge>
           {event.page !== null ? (
             <button
               type="button"

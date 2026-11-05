@@ -134,11 +134,26 @@
   position: absolute;
   background: oklch(0.9 0.16 95 / 0.5);
   border-radius: 2px;
+  cursor: pointer;
   mix-blend-mode: multiply;
+  pointer-events: auto;
+  transition: opacity 120ms;
 }
 
 .pdf-hl-active {
   background: oklch(0.85 0.17 85 / 0.85);
+  outline: 2px solid oklch(0.75 0.17 70);
+  outline-offset: 1px;
+}
+
+/* While one source is focused, the others step back. */
+.pdf-dim .pdf-hl {
+  opacity: 0.25;
+}
+
+.pdf-dim .pdf-hl-focus {
+  background: oklch(0.85 0.17 85 / 0.85);
+  opacity: 1;
   outline: 2px solid oklch(0.75 0.17 70);
   outline-offset: 1px;
 }

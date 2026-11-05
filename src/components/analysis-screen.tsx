@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -62,8 +62,9 @@ export function AnalysisScreen() {
             ))}
           </TabsList>
         )}
+        {/* Kept mounted so every tab's quotes get checked, not just the tabs opened. */}
         {files.map((f) => (
-          <TabsContent key={f.id} value={f.id}>
+          <TabsContent key={f.id} value={f.id} keepMounted>
             <FilePanel
               file={f}
               missingSources={missingSources[f.id]}
@@ -103,7 +104,19 @@ function FilePanel({
   onMissingSourcesChange,
   footer,
 }: FilePanelProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<{ id: string; fromPdf: boolean } | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const selectedId = selection?.id ?? null
+
+  const selectFromList = useCallback((id: string) => setSelection({ id, fromPdf: false }), [])
+  const selectFromPdf = useCallback((id: string) => {
+    setSelection({ id, fromPdf: true })
+    listRef.current
+      ?.querySelector(`[data-source-row="${CSS.escape(id)}"]`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+  }, [])
+
   const reportMissing = useCallback(
     (ids: Set<string>) => onMissingSourcesChange(file.id, ids),
     [file.id, onMissingSourcesChange]
@@ -123,7 +136,7 @@ function FilePanel({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <div className="flex min-w-0 flex-col gap-3">
+      <div ref={listRef} className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-semibold tracking-tight">
             {file.course?.name?.value ?? file.file.name}
@@ -134,7 +147,9 @@ function FilePanel({
           <CourseInfoSection
             file={file}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            hoveredId={hoveredId}
+            onSelect={selectFromList}
+            onHover={setHoveredId}
             missingSources={missingSources}
           />
         )}
@@ -142,7 +157,9 @@ function FilePanel({
           <EventList
             file={file}
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            hoveredId={hoveredId}
+            onSelect={selectFromList}
+            onHover={setHoveredId}
             missingSources={missingSources}
           />
         )}
@@ -161,6 +178,10 @@ function FilePanel({
           file={file.file}
           sources={sources}
           selectedId={selectedId}
+          followSelection={!selection?.fromPdf}
+          focusedId={hoveredId}
+          onSelect={selectFromPdf}
+          onFocusChange={setHoveredId}
           onMissingSourcesChange={reportMissing}
         />
       </aside>
