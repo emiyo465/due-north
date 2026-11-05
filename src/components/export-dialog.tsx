@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { needsReview, type SyllabusFile } from "@/lib/types"
 
-// Placeholder targets for Milestone 1; real exports land in weeks 4–5.
+// Placeholder targets; real exports land in Milestone 2, weeks 2–3.
 const TARGETS = [
   { label: "Google Calendar", icon: CalendarPlus },
   { label: "Apple Calendar", icon: Calendar },
