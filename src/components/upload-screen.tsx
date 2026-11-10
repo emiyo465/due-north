@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { usePlanner } from "@/lib/planner-store"
 import type { SyllabusFile } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -93,7 +94,10 @@ export function UploadScreen() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-12 sm:py-20">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Semester Planner</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Semester Planner</h1>
+          <ThemeToggle />
+        </div>
         <p className="text-muted-foreground">
           Drop in your syllabi and we&apos;ll pull out every project, paper, and exam date for your
           calendar.
