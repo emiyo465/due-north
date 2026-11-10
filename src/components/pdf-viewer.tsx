@@ -6,7 +6,9 @@ import type { PDFDocumentProxy } from "pdfjs-dist"
 import { LoaderCircle, ZoomIn, ZoomOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import "@/lib/pdf-safari"
+import { typeColor } from "@/lib/event-colors"
 import { findQuote, type QuoteSpan } from "@/lib/quote-match"
+import type { EventType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import "react-pdf/dist/Page/TextLayer.css"
 
@@ -73,6 +75,8 @@ export interface HighlightSource {
   quote: string
   /** The page the extractor reported, or null if unknown. */
   page: number | null
+  /** Colors an event's highlight by its type; course fields have none. */
+  type?: EventType
 }
 
 interface PdfViewerProps {
@@ -234,6 +238,8 @@ export default function PdfViewer({
     }
     return result
   }, [matches, pages])
+
+  const typeById = useMemo(() => new Map(sources.map((s) => [s.id, s.type])), [sources])
 
   useEffect(() => {
     if (!pages) return
@@ -486,6 +492,7 @@ export default function PdfViewer({
                                 id === focusedId && "pdf-hl-focus"
                               )}
                               style={{
+                                ...typeColor(typeById.get(id)),
                                 left: `${box.left}%`,
                                 top: `${box.top}%`,
                                 width: `${box.width}%`,

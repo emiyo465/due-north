@@ -4,6 +4,7 @@ import { useState } from "react"
 import { CircleCheck, FileSearch, Pencil, Trash2, TriangleAlert, Undo2 } from "lucide-react"
 import { rowHoverProps } from "@/components/row-hover"
 import { Badge } from "@/components/ui/badge"
+import { typeColor } from "@/lib/event-colors"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -100,7 +101,10 @@ function EventView({
           {label}
         </p>
         <div className="flex flex-wrap items-center gap-1.5">
-          <Badge variant="outline">{EVENT_TYPE_LABELS[event.type]}</Badge>
+          <Badge variant="outline" className="type-badge" style={typeColor(event.type)}>
+            <span className="size-1.5 rounded-full bg-(--type)" aria-hidden />
+            {EVENT_TYPE_LABELS[event.type]}
+          </Badge>
           {event.page !== null ? (
             <button
               type="button"

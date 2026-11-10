@@ -8,6 +8,7 @@ import { ArrowLeft, CircleAlert, LoaderCircle, RotateCw } from "lucide-react"
 import { CourseInfoSection } from "@/components/course-info"
 import { EventList } from "@/components/event-list"
 import { ExportDialog } from "@/components/export-dialog"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { usePlanner } from "@/lib/planner-store"
@@ -47,6 +48,7 @@ export function AnalysisScreen() {
           </Link>
           <h1 className="text-xl font-semibold tracking-tight">Review your dates</h1>
         </div>
+        <ThemeToggle className="ml-auto" />
       </header>
 
       <Tabs value={active.id} onValueChange={(value) => setActiveId(value)}>
@@ -129,7 +131,7 @@ function FilePanel({
         const field = file.course?.[key]
         return field ? [{ id: courseFieldId(key), quote: field.source_quote, page: field.page }] : []
       }),
-      ...file.events.map((e) => ({ id: e.id, quote: e.source_quote, page: e.page })),
+      ...file.events.map((e) => ({ id: e.id, quote: e.source_quote, page: e.page, type: e.type })),
     ],
     [file.course, file.events]
   )
