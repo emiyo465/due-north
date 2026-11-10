@@ -1,12 +1,17 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { signIn } from "next-auth/react"
 
 // Opened in a popup by signInWithGoogle(), so the planner's in-memory work
 // stays put in the main window while the user signs in.
 export default function GoogleSignInPage() {
+  // Dev mode runs effects twice; start one sign-in, not two.
+  const started = useRef(false)
+
   useEffect(() => {
+    if (started.current) return
+    started.current = true
     void signIn("google", { redirectTo: "/auth/done" })
   }, [])
 
