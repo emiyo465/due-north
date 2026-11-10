@@ -66,30 +66,40 @@ const STARTS_AT_TIME: EventType[] = ["exam", "quiz"]
 const SITTING_MINUTES = 60
 const DEADLINE_MINUTES = 30
 
-function toDateArray(date: Date): DateArray {
-  return [
-    date.getFullYear(),
-    date.getMonth() + 1,
-    date.getDate(),
-    date.getHours(),
-    date.getMinutes(),
-  ]
+/** A whole day ("2026-09-25") or a wall-clock time with no zone ("2026-09-25T13:30"). */
+export type CalendarTime = { date: string } | { dateTime: string }
+
+/** One calendar event, before it's written as .ics or sent to Google Calendar. */
+export interface CalendarEntry {
+  uid?: string
+  title: string
+  description?: string
+  location?: string
+  start: CalendarTime
+  /** Exclusive for whole days, so a one-day event ends the next day. */
+  end: CalendarTime
+  /** Weekly repeats for class meetings, kept in wall-clock time. */
+  repeat?: {
+    days: Weekday[]
+    /** ISO date of the last day, inclusive. */
+    until: string
+    /** Wall-clock start times of skipped occurrences. */
+    skip: string[]
+  }
 }
 
-function toDayArray(date: Date): DateArray {
-  return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
-}
+const wholeDay = (date: Date): CalendarTime => ({ date: format(date, "yyyy-MM-dd") })
+const wallClock = (date: Date): CalendarTime => ({ dateTime: format(date, "yyyy-MM-dd'T'HH:mm") })
 
 function eventSpan({ due_date, time, type }: ExportEvent["event"], allDay: boolean) {
   if (!time || allDay) {
     const day = parseISO(due_date)
-    // The end of an all-day event is exclusive, so it's the next day.
-    return { start: toDayArray(day), end: toDayArray(addDays(day, 1)) }
+    return { start: wholeDay(day), end: wholeDay(addDays(day, 1)) }
   }
-  const at = parse(`${due_date} ${time}`, "yyyy-MM-dd HH:mm", new Date())
+  const due = parse(`${due_date} ${time}`, "yyyy-MM-dd HH:mm", new Date())
   return STARTS_AT_TIME.includes(type)
-    ? { start: toDateArray(at), end: toDateArray(addMinutes(at, SITTING_MINUTES)) }
-    : { start: toDateArray(addMinutes(at, -DEADLINE_MINUTES)), end: toDateArray(at) }
+    ? { start: wallClock(due), end: wallClock(addMinutes(due, SITTING_MINUTES)) }
+    : { start: wallClock(addMinutes(due, -DEADLINE_MINUTES)), end: wallClock(due) }
 }
 
 const WEEKDAYS: Weekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"]
@@ -98,45 +108,41 @@ function weekdayOf(date: Date) {
   return WEEKDAYS[date.getDay()]
 }
 
-function atTime(date: Date, time: string) {
-  const [hours, minutes] = time.split(":").map(Number)
-  return [date.getFullYear(), date.getMonth() + 1, date.getDate(), hours, minutes] as DateArray
+function onDayAt(date: Date, time: string) {
+  return `${format(date, "yyyy-MM-dd")}T${time}`
 }
 
-function meetingEvent(
+function meetingEntry(
   meeting: ClassMeeting,
   { course, schedule, firstDay, lastDay, notes }: ClassExport
-) {
+): CalendarEntry | null {
   let first = parseISO(firstDay)
   const last = parseISO(lastDay)
   while (first <= last && !meeting.days.includes(weekdayOf(first))) first = addDays(first, 1)
   if (first > last) return null
 
-  const skipped = schedule.no_class_dates
+  const skip = schedule.no_class_dates
     .map((date) => parseISO(date))
     .filter((date) => date >= first && date <= last && meeting.days.includes(weekdayOf(date)))
-    .map((date) => `${format(date, "yyyyMMdd")}T${meeting.start.replace(":", "")}00`)
+    .map((date) => onDayAt(date, meeting.start))
 
-  // Written as wall-clock time with no zone: a recurrence stored in UTC would
-  // shift an hour when daylight saving changes partway through the term.
-  const event: EventAttributes = {
-    start: atTime(first, meeting.start),
-    end: atTime(first, meeting.end),
-    startOutputType: "local",
-    endOutputType: "local",
+  const entry: CalendarEntry = {
     title: `${course}: ${meeting.label ?? "Class"}`,
-    recurrenceRule: `FREQ=WEEKLY;BYDAY=${meeting.days.join(",")};UNTIL=${format(last, "yyyyMMdd")}T235959`,
-    productId: "automated-semester-planner",
+    start: { dateTime: onDayAt(first, meeting.start) },
+    end: { dateTime: onDayAt(first, meeting.end) },
+    repeat: { days: meeting.days, until: lastDay, skip },
   }
-  if (meeting.location) event.location = meeting.location
-  if (notes) event.description = notes
-  if (skipped.length > 0) event.exclusionDates = skipped
-  return event
+  if (meeting.location) entry.location = meeting.location
+  if (notes) entry.description = notes
+  return entry
 }
 
-/** An .ics calendar. Deadlines are read in the browser's time zone and written as UTC. */
-export function toIcs(events: ExportEvent[], { allDayDeadlines = false, classes = [] }: IcsOptions = {}) {
-  const attributes = events.map(({ course, event }): EventAttributes => {
+/** Every event and weekly class meeting to put in a calendar. */
+export function buildCalendarEntries(
+  events: ExportEvent[],
+  { allDayDeadlines = false, classes = [] }: IcsOptions = {}
+) {
+  const entries = events.map(({ course, event }): CalendarEntry => {
     const allDay = allDayDeadlines && !STARTS_AT_TIME.includes(event.type)
     return {
       ...eventSpan(event, allDay),
@@ -149,16 +155,58 @@ export function toIcs(events: ExportEvent[], { allDayDeadlines = false, classes 
       ]
         .filter(Boolean)
         .join("\n"),
-      productId: "automated-semester-planner",
     }
   })
   for (const entry of classes) {
     for (const meeting of entry.schedule.meetings) {
-      const event = meetingEvent(meeting, entry)
-      if (event) attributes.push(event)
+      const event = meetingEntry(meeting, entry)
+      if (event) entries.push(event)
     }
   }
-  const { error, value } = createEvents(attributes)
+  return entries
+}
+
+function toDateArray(time: CalendarTime): DateArray {
+  if ("date" in time) {
+    const [year, month, day] = time.date.split("-").map(Number)
+    return [year, month, day]
+  }
+  const [date, clock] = time.dateTime.split("T")
+  const [year, month, day] = date.split("-").map(Number)
+  const [hours, minutes] = clock.split(":").map(Number)
+  return [year, month, day, hours, minutes]
+}
+
+/** "2026-11-26T13:30" → "20261126T133000" */
+export function compactDateTime(dateTime: string) {
+  return `${dateTime.replace(/[-:]/g, "")}00`
+}
+
+function toIcsAttributes(entry: CalendarEntry): EventAttributes {
+  const attributes: EventAttributes = {
+    start: toDateArray(entry.start),
+    end: toDateArray(entry.end),
+    title: entry.title,
+    productId: "automated-semester-planner",
+  }
+  if (entry.uid) attributes.uid = entry.uid
+  if (entry.description) attributes.description = entry.description
+  if (entry.location) attributes.location = entry.location
+  if (entry.repeat) {
+    // Written as wall-clock time with no zone: a recurrence stored in UTC would
+    // shift an hour when daylight saving changes partway through the term.
+    const { days, until, skip } = entry.repeat
+    attributes.startOutputType = "local"
+    attributes.endOutputType = "local"
+    attributes.recurrenceRule = `FREQ=WEEKLY;BYDAY=${days.join(",")};UNTIL=${until.replaceAll("-", "")}T235959`
+    if (skip.length > 0) attributes.exclusionDates = skip.map(compactDateTime)
+  }
+  return attributes
+}
+
+/** An .ics calendar. One-off events are read in the browser's time zone and written as UTC. */
+export function toIcs(events: ExportEvent[], options: IcsOptions = {}) {
+  const { error, value } = createEvents(buildCalendarEntries(events, options).map(toIcsAttributes))
   if (error || !value) throw error ?? new Error("Couldn't create the calendar file")
   return value
 }
