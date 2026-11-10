@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildCalendarEntries, type ExportEvent } from "./export"
-import { calendarName, toGoogleEvents } from "./google-calendar"
+import { toGoogleEvents } from "./google-calendar"
 import type { ClassSchedule, PlannerEvent } from "./types"
 
 // Vitest pins TZ to America/Chicago (see vitest.config.mts).
@@ -70,13 +70,5 @@ describe("toGoogleEvents", () => {
       "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20261204T055959Z",
       `EXDATE;TZID=${ZONE}:20261126T133000`,
     ])
-  })
-})
-
-describe("calendarName", () => {
-  it("names the term by season and year", () => {
-    expect(calendarName("2026-08-24")).toBe("Fall 2026 classes")
-    expect(calendarName("2027-01-11")).toBe("Spring 2027 classes")
-    expect(calendarName("2027-06-01")).toBe("Summer 2027 classes")
   })
 })

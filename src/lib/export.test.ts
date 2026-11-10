@@ -5,7 +5,6 @@ import {
   defaultClassEnd,
   formatMeeting,
   classNotes,
-  toCsv,
   toIcs,
   toPlainText,
   type ExportEvent,
@@ -259,23 +258,6 @@ describe("formatMeeting", () => {
   it("names the days and times, with any label", () => {
     const meeting = { label: "Lab", days: ["TU" as const], start: "13:30", end: "14:45", location: null }
     expect(formatMeeting(meeting)).toBe("Lab: Tue 1:30 PM–2:45 PM")
-  })
-})
-
-describe("toCsv", () => {
-  it("writes a BOM, header, and quoted rows", () => {
-    const csv = toCsv([dated({ title: 'Paper "A", draft', time: "23:59", verified: true })])
-    expect(csv.startsWith("﻿")).toBe(true)
-    expect(csv.slice(1).split("\r\n")).toEqual([
-      '"Course","Title","Type","Date","Time","Verified"',
-      '"CS 340","Paper ""A"", draft","Project","2026-09-25","23:59","Yes"',
-      "",
-    ])
-  })
-
-  it("neutralizes text Excel would run as a formula", () => {
-    expect(toCsv([dated({ title: "=HYPERLINK(1)" })])).toContain(`"'=HYPERLINK(1)"`)
-    expect(toCsv([dated({ title: "@SUM(1)" })])).toContain(`"'@SUM(1)"`)
   })
 })
 

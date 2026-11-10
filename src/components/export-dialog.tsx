@@ -5,7 +5,7 @@ import {
   Calendar,
   CalendarPlus,
   Download,
-  FileSpreadsheet,
+  FileDown,
   FileText,
   Loader2,
   TriangleAlert,
@@ -27,14 +27,13 @@ import {
   defaultClassEnd,
   formatMeeting,
   classNotes,
-  toCsv,
   toIcs,
   toPlainText,
   type ClassExport,
   type IcsOptions,
 } from "@/lib/export"
 import { SignInError, signInWithGoogle } from "@/lib/google-auth"
-import { browserTimeZone, calendarName, toGoogleEvents } from "@/lib/google-calendar"
+import { browserTimeZone, CALENDAR_NAME, toGoogleEvents } from "@/lib/google-calendar"
 import { usePlanner } from "@/lib/planner-store"
 import { needsReview, type SyllabusFile } from "@/lib/types"
 
@@ -61,13 +60,10 @@ const TARGETS = [
     next: "",
   },
   {
-    label: "Excel / CSV",
-    icon: FileSpreadsheet,
-    extension: "csv",
-    mimeType: "text/csv",
-    build: toCsv,
-    calendar: false,
-    next: "",
+    label: "Calendar file (.ics)",
+    icon: FileDown,
+    ...ICS,
+    next: "Import it into Outlook or any other calendar app.",
   },
 ]
 
@@ -184,13 +180,12 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
         setGoogle({ configured: true, signedIn: true })
       }
       setBusy("exporting")
-      const name = calendarName(state.termStart)
       const timeZone = browserTimeZone()
       const res = await fetch("/api/google/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          calendarName: name,
+          calendarName: CALENDAR_NAME,
           timeZone,
           events: toGoogleEvents(buildCalendarEntries(dated, icsOptions), timeZone),
         }),
@@ -209,7 +204,7 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
       const added = inserted === 1 ? "1 event" : `${inserted} events`
       setNotice({
         text:
-          `Added ${added} to a new calendar, “${name}”.` +
+          `Added ${added} to a new calendar, “${CALENDAR_NAME}”.` +
           (failed > 0 ? ` ${failed} couldn't be added. Delete that calendar and try again, or download the file.` : ""),
         link,
         fallback: failed > 0,

@@ -1,4 +1,4 @@
-import { format, parse } from "date-fns"
+import { parse } from "date-fns"
 import { compactDateTime, type CalendarEntry, type CalendarTime } from "@/lib/export"
 
 /** The subset of a Google Calendar API event resource this app sends. */
@@ -45,13 +45,8 @@ export function toGoogleEvents(entries: CalendarEntry[], timeZone: string): Goog
   })
 }
 
-/** A name for the new calendar, from the term's start date: "Fall 2026 classes". */
-export function calendarName(termStart: string) {
-  const start = parse(termStart, "yyyy-MM-dd", new Date())
-  const month = start.getMonth() // 0-based
-  const season = month <= 3 ? "Spring" : month <= 6 ? "Summer" : "Fall"
-  return `${season} ${format(start, "yyyy")} classes`
-}
+/** The name of the calendar each Google export creates. */
+export const CALENDAR_NAME = "Semester Planner"
 
 /** The browser's IANA time zone, e.g. "America/Chicago". */
 export function browserTimeZone() {

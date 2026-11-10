@@ -245,26 +245,6 @@ export function formatMeeting({ label, days, start, end }: ClassMeeting) {
   return label ? `${label}: ${when}` : when
 }
 
-/** Quotes a cell, and stops Excel running text from a PDF as a formula. */
-function csvCell(text: string) {
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
-  return `"${safe.replaceAll('"', '""')}"`
-}
-
-export function toCsv(events: ExportEvent[]) {
-  const header = ["Course", "Title", "Type", "Date", "Time", "Verified"]
-  const rows = events.map(({ course, event }) => [
-    course,
-    event.title,
-    EVENT_TYPE_LABELS[event.type],
-    event.due_date,
-    event.time ?? "",
-    event.verified ? "Yes" : "No",
-  ])
-  // The byte order mark makes Excel read the file as UTF-8.
-  return "﻿" + [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n") + "\r\n"
-}
-
 /** One section per course, in date order. */
 export function toPlainText(events: ExportEvent[]) {
   const courses = new Map<string, string[]>()
