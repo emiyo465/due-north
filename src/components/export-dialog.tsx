@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import {
   Calendar,
   CalendarPlus,
   Download,
   FileSpreadsheet,
   FileText,
+  Loader2,
   TriangleAlert,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import {
+  buildCalendarEntries,
   collectExportEvents,
   courseLabel,
   defaultClassEnd,
@@ -31,20 +33,23 @@ import {
   type ClassExport,
   type IcsOptions,
 } from "@/lib/export"
+import { SignInError, signInWithGoogle } from "@/lib/google-auth"
+import { browserTimeZone, calendarName, toGoogleEvents } from "@/lib/google-calendar"
 import { usePlanner } from "@/lib/planner-store"
 import { needsReview, type SyllabusFile } from "@/lib/types"
 
 const FILE_NAME = "semester-dates"
 const ICS = { extension: "ics", mimeType: "text/calendar", build: toIcs, calendar: true }
 
-// Google Calendar imports the .ics until direct insert lands in week 3.
+// Google Calendar inserts directly once sign-in is set up on the server, and
+// otherwise downloads the .ics with import steps.
+const GOOGLE_ICS = {
+  label: "Google Calendar",
+  ...ICS,
+  next: "In Google Calendar, open Settings, then Import & export, and choose the file.",
+}
+
 const TARGETS = [
-  {
-    label: "Google Calendar",
-    icon: CalendarPlus,
-    ...ICS,
-    next: "In Google Calendar, open Settings, then Import & export, and choose the file.",
-  },
   { label: "Apple Calendar", icon: Calendar, ...ICS, next: "Open the file to add it to Calendar." },
   {
     label: "Plaintext",
@@ -65,6 +70,20 @@ const TARGETS = [
     next: "",
   },
 ]
+
+type DownloadTarget = Omit<(typeof TARGETS)[number], "icon">
+
+interface GoogleStatus {
+  configured: boolean
+  signedIn: boolean
+}
+
+interface Notice {
+  text: string
+  link?: string
+  /** Offer the .ics download when the direct export didn't work. */
+  fallback?: boolean
+}
 
 function downloadFile(content: string, extension: string, mimeType: string) {
   const url = URL.createObjectURL(new Blob([content], { type: `${mimeType};charset=utf-8` }))
@@ -87,7 +106,10 @@ interface ExportDialogProps {
 
 export function ExportDialog({ files, missingSources }: ExportDialogProps) {
   const { state } = usePlanner()
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const [google, setGoogle] = useState<GoogleStatus | null>(null)
+  const [busy, setBusy] = useState<"signing-in" | "exporting" | null>(null)
+  const signInAbort = useRef<AbortController | null>(null)
   const [allDayDeadlines, setAllDayDeadlines] = useState(true)
   const [includeClasses, setIncludeClasses] = useState(false)
   const [includeDetails, setIncludeDetails] = useState(true)
@@ -121,22 +143,103 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
       )
     : []
   const icsOptions: IcsOptions = { allDayDeadlines, classes }
+  const withClasses = (calendar: boolean) =>
+    calendar && classes.length > 0
+      ? ` and class times for ${classes.length} ${classes.length === 1 ? "course" : "courses"}`
+      : ""
 
-  function exportTo(target: (typeof TARGETS)[number]) {
+  function exportTo(target: DownloadTarget) {
     try {
       downloadFile(target.build(dated, icsOptions), target.extension, target.mimeType)
-      const withClasses =
-        target.calendar && classes.length > 0
-          ? ` and class times for ${classes.length} ${classes.length === 1 ? "course" : "courses"}`
-          : ""
-      setNotice(`Downloaded ${countDates(dated.length)}${withClasses}. ${target.next}`.trim())
+      setNotice({
+        text: `Downloaded ${countDates(dated.length)}${withClasses(target.calendar)}. ${target.next}`.trim(),
+      })
     } catch {
-      setNotice(`Couldn't create the ${target.label} file. Check the dates and try again.`)
+      setNotice({ text: `Couldn't create the ${target.label} file. Check the dates and try again.` })
+    }
+  }
+
+  async function checkGoogle() {
+    try {
+      const res = await fetch("/api/google/status")
+      setGoogle(res.ok ? await res.json() : { configured: false, signedIn: false })
+    } catch {
+      setGoogle({ configured: false, signedIn: false })
+    }
+  }
+
+  async function exportToGoogle() {
+    if (!google?.configured) return exportTo(GOOGLE_ICS)
+    setNotice(null)
+    // The popup has to open straight from the click, before anything is awaited.
+    let signIn: Promise<void> | null = null
+    if (!google.signedIn) {
+      signInAbort.current = new AbortController()
+      signIn = signInWithGoogle(signInAbort.current.signal)
+    }
+    try {
+      if (signIn) {
+        setBusy("signing-in")
+        await signIn
+        setGoogle({ configured: true, signedIn: true })
+      }
+      setBusy("exporting")
+      const name = calendarName(state.termStart)
+      const timeZone = browserTimeZone()
+      const res = await fetch("/api/google/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          calendarName: name,
+          timeZone,
+          events: toGoogleEvents(buildCalendarEntries(dated, icsOptions), timeZone),
+        }),
+      })
+      if (res.status === 401) {
+        setGoogle({ configured: true, signedIn: false })
+        setNotice({ text: "Your Google sign-in expired. Choose Google Calendar again to sign in." })
+        return
+      }
+      if (!res.ok) throw new Error(`Export failed with ${res.status}`)
+      const { link, inserted, failed } = (await res.json()) as {
+        link: string
+        inserted: number
+        failed: number
+      }
+      const added = inserted === 1 ? "1 event" : `${inserted} events`
+      setNotice({
+        text:
+          `Added ${added} to a new calendar, “${name}”.` +
+          (failed > 0 ? ` ${failed} couldn't be added. Delete that calendar and try again, or download the file.` : ""),
+        link,
+        fallback: failed > 0,
+      })
+    } catch (e) {
+      if (e instanceof SignInError && e.reason === "cancelled") return
+      setNotice({
+        text:
+          e instanceof SignInError && e.reason === "blocked"
+            ? "The browser blocked the Google sign-in window. Allow pop-ups for this site, or download the file instead."
+            : "Couldn't add the dates to Google Calendar. Try again, or download the file instead.",
+        fallback: true,
+      })
+    } finally {
+      signInAbort.current = null
+      setBusy(null)
     }
   }
 
   return (
-    <Dialog onOpenChange={(open) => !open && setNotice(null)}>
+    <Dialog
+      onOpenChange={(open) => {
+        if (open) {
+          void checkGoogle()
+        } else {
+          signInAbort.current?.abort()
+          setNotice(null)
+        }
+      }}
+    >
       <DialogTrigger render={<Button size="lg" className="h-11 gap-2 px-6 text-base" />}>
         <Download className="size-5" aria-hidden />
         Export dates
@@ -238,12 +341,25 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
         </fieldset>
 
         <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="outline"
+            className="h-auto flex-col gap-2 py-4"
+            disabled={dated.length === 0 || busy !== null}
+            onClick={exportToGoogle}
+          >
+            {busy ? (
+              <Loader2 className="size-5 animate-spin" aria-hidden />
+            ) : (
+              <CalendarPlus className="size-5" aria-hidden />
+            )}
+            Google Calendar
+          </Button>
           {TARGETS.map((target) => (
             <Button
               key={target.label}
               variant="outline"
               className="h-auto flex-col gap-2 py-4"
-              disabled={dated.length === 0}
+              disabled={dated.length === 0 || busy !== null}
               onClick={() => exportTo(target)}
             >
               <target.icon className="size-5" aria-hidden />
@@ -252,9 +368,33 @@ export function ExportDialog({ files, missingSources }: ExportDialogProps) {
           ))}
         </div>
 
-        <p role="status" className="min-h-5 text-muted-foreground">
-          {notice}
-        </p>
+        <div role="status" className="flex min-h-5 flex-col items-start gap-2 text-muted-foreground">
+          {busy === "signing-in" && (
+            <p className="flex flex-wrap items-center gap-x-2">
+              Finish signing in to Google in the pop-up window.
+              <Button variant="link" className="h-auto p-0" onClick={() => signInAbort.current?.abort()}>
+                Cancel
+              </Button>
+            </p>
+          )}
+          {busy === "exporting" && <p>Adding your dates to Google Calendar…</p>}
+          {notice && <p>{notice.text}</p>}
+          {notice?.link && (
+            <a
+              href={notice.link}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline underline-offset-4"
+            >
+              Open Google Calendar
+            </a>
+          )}
+          {notice?.fallback && (
+            <Button variant="link" className="h-auto p-0" onClick={() => exportTo(GOOGLE_ICS)}>
+              Download the .ics file instead
+            </Button>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )
