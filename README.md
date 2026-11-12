@@ -2,7 +2,7 @@
 
 <h1 align="center">Due North</h1>
 
-**Try it:** [automated-semester-planner.vercel.app](https://automated-semester-planner.vercel.app)
+**Try it:** [due-north-planner.vercel.app](https://due-north-planner.vercel.app)
 
 At the start of every semester, students go through the tedious process of reading through each syllabus, writing down the due dates, and typing them into a calendar by hand. With Due North, that's all done for you: upload your syllabus PDFs and it finds the project, paper, quiz, and exam dates, shows you where each one came from, and sends them to your calendar. The whole thing takes under three minutes.
 
