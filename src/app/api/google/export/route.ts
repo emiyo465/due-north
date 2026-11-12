@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   try {
     ;({ id: calendarId } = await google<{ id: string }>(token, "/calendars", {
       summary: calendarName,
-      description: "Dates from your syllabi, added by Semester Planner.",
+      description: "Dates from your syllabi, added by Due North.",
       timeZone,
     }))
   } catch (e) {

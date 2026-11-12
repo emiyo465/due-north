@@ -46,7 +46,7 @@ export function toGoogleEvents(entries: CalendarEntry[], timeZone: string): Goog
 }
 
 /** The name of the calendar each Google export creates. */
-export const CALENDAR_NAME = "Semester Planner"
+export const CALENDAR_NAME = "Due North"
 
 /** The browser's IANA time zone, e.g. "America/Chicago". */
 export function browserTimeZone() {

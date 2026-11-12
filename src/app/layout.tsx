@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Semester Planner",
+  title: "Due North",
   description: "Extract deadlines from syllabus PDFs and export them to your calendar.",
 };
 

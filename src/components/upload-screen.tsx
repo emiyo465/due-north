@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
+import { Logo } from "@/components/logo"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { usePlanner } from "@/lib/planner-store"
 import type { SyllabusFile } from "@/lib/types"
@@ -95,7 +96,10 @@ export function UploadScreen() {
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-4 py-12 sm:py-20">
       <header className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Semester Planner</h1>
+          <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight">
+            <Logo className="size-8" />
+            Due North
+          </h1>
           <ThemeToggle />
         </div>
         <p className="text-muted-foreground">

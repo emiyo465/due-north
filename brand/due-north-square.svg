@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Due North</title>
+  <rect width="64" height="64" fill="#4146cc"/>
+  <rect x="13" y="17" width="38" height="34" rx="6" fill="#fff"/>
+  <rect x="21" y="11" width="5" height="11" rx="2.5" fill="#fff" stroke="#4146cc" stroke-width="2"/>
+  <rect x="38" y="11" width="5" height="11" rx="2.5" fill="#fff" stroke="#4146cc" stroke-width="2"/>
+  <polygon points="32,25 40,45 32,40 24,45" fill="#4146cc"/>
+</svg>

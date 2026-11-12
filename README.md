@@ -1,8 +1,10 @@
-# Semester Planner
+<p align="center"><img src="brand/due-north-logo.svg" width="96" alt="Due North logo"></p>
+
+<h1 align="center">Due North</h1>
 
 **Try it:** [automated-semester-planner.vercel.app](https://automated-semester-planner.vercel.app)
 
-At the start of every semester, students go through the tedious process of reading through each syllabus, writing down the due dates, and typing them into a calendar by hand. With Semester Planner, that's all done for you: upload your syllabus PDFs and it finds the project, paper, quiz, and exam dates, shows you where each one came from, and sends them to your calendar. The whole thing takes under three minutes.
+At the start of every semester, students go through the tedious process of reading through each syllabus, writing down the due dates, and typing them into a calendar by hand. With Due North, that's all done for you: upload your syllabus PDFs and it finds the project, paper, quiz, and exam dates, shows you where each one came from, and sends them to your calendar. The whole thing takes under three minutes.
 
 ## Tech stack
 
@@ -30,7 +32,7 @@ At the start of every semester, students go through the tedious process of readi
 
 | Option | What you get |
 |---|---|
-| **Google Calendar** | Sign in with Google and the dates go straight into a new calendar named "Semester Planner", so you can remove them all at once by deleting that calendar. The app can only create and fill its own calendars; it can't see your others. |
+| **Google Calendar** | Sign in with Google and the dates go straight into a new calendar named "Due North", so you can remove them all at once by deleting that calendar. The app can only create and fill its own calendars; it can't see your others. |
 | **Apple Calendar** | A calendar file (.ics) that opens in Calendar. |
 | **Calendar file (.ics)** | The same file, for Outlook or any other calendar app. |
 | **Plaintext** | A .txt list of your dates, for notes apps or anywhere else. |
@@ -42,4 +44,4 @@ The calendar exports have two options:
 
 Dates with no day (for example "TBD") are left out, and the export screen tells you how many.
 
-> **Note:** Google sign-in is in Google's testing mode, so direct export only works for accounts which are approved. Anyone can download the .ics file and import it into Google Calendar (Settings → Import & export).
+> **Note:** Google hasn't verified the app yet, so you will see a warning screen when exporting to Google Calendar. It won't affect the quality of the output to Google Calendar.

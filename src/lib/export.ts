@@ -187,7 +187,7 @@ function toIcsAttributes(entry: CalendarEntry): EventAttributes {
     start: toDateArray(entry.start),
     end: toDateArray(entry.end),
     title: entry.title,
-    productId: "automated-semester-planner",
+    productId: "due-north",
   }
   if (entry.uid) attributes.uid = entry.uid
   if (entry.description) attributes.description = entry.description
