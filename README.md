@@ -4,7 +4,7 @@
 
 **Try it:** [due-north-planner.vercel.app](https://due-north-planner.vercel.app)
 
-At the start of every semester, students go through the tedious process of reading through each syllabus, writing down the due dates, and typing them into a calendar by hand. With Due North, that's all done for you: upload your syllabus PDFs and it finds the project, paper, quiz, and exam dates, shows you where each one came from, and sends them to your calendar. The whole thing takes under three minutes.
+At the start of every semester, students go through the tedious process of reading through each syllabus, noting down the class schedule, and typing it into a calendar manually. With Due North, that's all done for you: upload your syllabus PDFs and it finds the project, paper, quiz, and exam dates, shows you where each one came from, and sends them to your calendar. The whole thing takes under three minutes.
 
 ## Tech stack
 
@@ -44,4 +44,4 @@ The calendar exports have two options:
 
 Dates with no day (for example "TBD") are left out, and the export screen tells you how many.
 
-> **Note:** Google hasn't verified the app yet, so you will see a warning screen when exporting to Google Calendar. It won't affect the quality of the output to Google Calendar.
+> **Note:** Google hasn't verified the app yet, so you will see a warning screen when exporting to Google Calendar, which requires you to login with your Google account. It won't affect the quality of the output to Google Calendar, nor will Due North have read access to your data.
