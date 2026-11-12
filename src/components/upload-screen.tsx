@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useDropzone, type FileRejection } from "react-dropzone"
-import { CircleAlert, CircleCheck, FileText, LoaderCircle, RotateCw, Upload, X } from "lucide-react"
+import { CircleAlert, CircleCheck, FileText, LoaderCircle, Lock, RotateCw, Upload, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -140,6 +140,10 @@ export function UploadScreen() {
             Use example syllabus
           </Button>
         </div>
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Lock className="size-3.5 shrink-0" aria-hidden />
+          Your PDFs stay in your browser. Only their text is sent to find the dates.
+        </p>
       </div>
 
       {rejections.length > 0 && (
